@@ -48,7 +48,19 @@ jobs:
             echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            
+            # Определяем алиас ключа: из секрета KEY_ALIAS либо автоматически из самого файла keystore
+            if [ -n "${{ secrets.KEY_ALIAS }}" ]; then
+              echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            else
+              DETECTED_ALIAS=$(keytool -list -v -keystore "${{ github.workspace }}/my-upload-key.jks" -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>/dev/null | grep -i "Alias name:" | head -n 1 | awk -F': ' '{print $2}' | tr -d '\r\n')
+              if [ -n "$DETECTED_ALIAS" ]; then
+                echo "Автоматически определён алиас ключа: $DETECTED_ALIAS"
+                echo "KEY_ALIAS=$DETECTED_ALIAS" >> $GITHUB_ENV
+              else
+                echo "KEY_ALIAS=my-key-alias" >> $GITHUB_ENV
+              fi
+            fi
           elif [ -f "debug.keystore.base64" ]; then
             base64 -d debug.keystore.base64 > "${{ github.workspace }}/debug.keystore"
           fi
