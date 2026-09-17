@@ -1,0 +1,6 @@
+{
+  "name": "tether",
+  "description": "Дневник питания и калорий tether с авторизацией, синхронизацией аккаунта и сканером штрих-кодов продуктов.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

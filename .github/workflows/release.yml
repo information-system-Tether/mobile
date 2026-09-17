@@ -1,0 +1,144 @@
+name: Android CI / CD & Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Сборка и публикация релиза
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Клонирование репозитория
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Настройка JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Настройка Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Настройка Gradle Wrapper
+        run: |
+          if [ ! -f "gradlew" ]; then
+            gradle wrapper --gradle-version 9.3.1
+          fi
+          chmod +x gradlew
+
+      - name: Подготовка Keystore для подписи
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/my-upload-key.jks"
+            echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          elif [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > "${{ github.workspace }}/debug.keystore"
+          fi
+
+      - name: Запуск тестов
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Сборка APK
+        run: |
+          # Сборка Release APK (если настроен ключ подписи) или сборка Debug APK с гарантированной подписью
+          if [ -n "$KEYSTORE_PATH" ] && [ -f "$KEYSTORE_PATH" ]; then
+            ./gradlew assembleRelease --no-daemon
+          else
+            ./gradlew assembleDebug --no-daemon
+          fi
+
+      - name: Подготовка артефактов для релиза
+        id: prepare_release
+        run: |
+          mkdir -p release_assets
+          # Поиск собранного APK
+          RELEASE_APK=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
+            cp "$RELEASE_APK" release_assets/tether.apk
+            echo "apk_path=release_assets/tether.apk" >> $GITHUB_OUTPUT
+            echo "APK найден: $RELEASE_APK"
+          else
+            echo "Ошибка: APK не найден"
+            exit 1
+          fi
+
+          # Определение версии и тега
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            COMMIT_HASH=$(git rev-parse --short HEAD)
+            TAG_NAME="v1.0.0-${COMMIT_HASH}"
+          fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Формирование описания релиза на русском языке
+        id: release_notes
+        run: |
+          DATE_STR=$(date '+%d.%m.%Y %H:%M UTC')
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          
+          cat << 'EOF' > release_body.md
+          ## 🥗 tether — Новый релиз
+          
+          **Дата сборки:** DATE_PLACEHOLDER
+          **Версия:** TAG_PLACEHOLDER
+          
+          ### 🚀 Основные возможности приложения:
+          - 📊 **Дневник питания и калорий:** Наглядное отображение фактического потребления калорий за день без принудительных ограничений.
+          - 🧬 **Баланс макронутриентов:** Динамическое кольцо белков, жиров и углеводов с подсчётом процентного соотношения энергии.
+          - 📷 **Сканер штрих-кодов:** Мгновенное сканирование упаковок продуктов через камеру (CameraX & ML Kit) с оптимизированным TextureView без сбоев буфера.
+          - ☁️ **Аккаунт и синхронизация:** Сохранение сессии пользователя, облачные резервные копии и поддержка автономного офлайн-режима.
+          - 💧 **Трекер воды:** Учёт выпитой жидкости с быстрыми кнопками добавления.
+          - 📦 **Каталог продуктов:** Полнотекстовый поиск по базе популярных продуктов и возможность создания собственных рецептов и блюд.
+          
+          ### 📝 Последние изменения:
+          COMMIT_MSG_PLACEHOLDER
+          
+          ---
+          📲 *Скачайте прикреплённый APK файл (`tether.apk`) и установите его на ваше Android-устройство.*
+          EOF
+
+          sed -i "s/DATE_PLACEHOLDER/$DATE_STR/g" release_body.md
+          sed -i "s/TAG_PLACEHOLDER/${{ steps.prepare_release.outputs.tag_name }}/g" release_body.md
+          # Замена многострочного сообщения коммита
+          python3 -c "
+          import sys
+          body = open('release_body.md').read()
+          msg = '''$COMMIT_MSG'''
+          print(body.replace('COMMIT_MSG_PLACEHOLDER', msg))
+          " > release_body_final.md || mv release_body.md release_body_final.md
+
+      - name: Загрузка артефактов в GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: tether-APK
+          path: ${{ steps.prepare_release.outputs.apk_path }}
+
+      - name: Публикация GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: ${{ steps.prepare_release.outputs.tag_name }}
+          name: tether ${{ steps.prepare_release.outputs.tag_name }}
+          body_path: release_body_final.md
+          draft: false
+          prerelease: false
+          files: ${{ steps.prepare_release.outputs.apk_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

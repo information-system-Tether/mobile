@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Center container within 66dp safe zone (center at 54, 54) -->
+    <!-- Leaf -->
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M54,28c3,-5 9,-7 14,-7c0,5 -2,11 -7,14c-4,2 -6,1 -7,-7z" />
+    <!-- Apple Body Silhouette -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,38c-3,-3 -8,-4 -13,-2c-8,4 -11,13 -9,22c3,12 13,22 22,22c9,0 19,-10 22,-22c2,-9 -1,-18 -9,-22c-5,-2 -10,-1 -13,2z" />
+    <!-- Stylized Barcode Stripes inside the Apple -->
+    <path
+        android:fillColor="#047857"
+        android:pathData="M40,46h3v22h-3zM45,46h2v22h-2zM49,46h4v22h-4zM55,46h2v22h-2zM59,46h3v22h-3zM64,46h4v22h-4z" />
+</vector>
+
