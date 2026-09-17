@@ -18,8 +18,8 @@ enum class WorkoutCategory(val displayNameRu: String, val approxKcalPerMin: Floa
     GYM("Силовая тренировка", 6.8f),
     CYCLING("Велосипед", 8.5f),
     SWIMMING("Плавание", 9.0f),
-    YOGA("Йога / Растяжка", 3.5f),
-    HIIT("Круговая / HIIT", 12.0f),
+    YOGA("Йога", 3.5f),
+    HIIT("Круговая", 12.0f),
     OTHER("Другое", 6.0f);
 
     fun estimateBurned(minutes: Int): Float = approxKcalPerMin * minutes

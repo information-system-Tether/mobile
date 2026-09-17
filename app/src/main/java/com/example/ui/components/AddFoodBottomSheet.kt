@@ -14,12 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,7 +26,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,7 +42,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -59,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -87,12 +81,10 @@ fun AddFoodBottomSheet(
     onClearSelectedProduct: () -> Unit,
     onLogFood: (product: FoodProduct, mealType: MealType, weightGrams: Float) -> Unit,
     onToggleFavorite: (FoodProduct) -> Unit,
-    onOpenScanner: () -> Unit,
     onOpenCreateProduct: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val focusManager = LocalFocusManager.current
 
     var weightInput by remember(selectedProduct) {
         mutableStateOf(selectedProduct?.defaultServingGrams?.toInt()?.toString() ?: "100")
@@ -160,7 +152,6 @@ fun AddFoodBottomSheet(
                     onSearchQueryChange = onSearchQueryChange,
                     onSelectProduct = onSelectProduct,
                     onToggleFavorite = onToggleFavorite,
-                    onOpenScanner = onOpenScanner,
                     onOpenCreateProduct = onOpenCreateProduct
                 )
             }
@@ -230,18 +221,11 @@ private fun ProductPortionLoggingView(
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    if (product.brand.isNotBlank()) {
+                    if (product.desc.isNotBlank()) {
                         Text(
-                            text = product.brand,
+                            text = product.desc,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (!product.barcode.isNullOrBlank()) {
-                        Text(
-                            text = "Штрих-код: ${product.barcode}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = PrimaryGreen
                         )
                     }
                 }
@@ -366,11 +350,10 @@ private fun SearchAndCatalogView(
     onSearchQueryChange: (String) -> Unit,
     onSelectProduct: (FoodProduct) -> Unit,
     onToggleFavorite: (FoodProduct) -> Unit,
-    onOpenScanner: () -> Unit,
     onOpenCreateProduct: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Search & Scanner Action Bar
+        // Search & Add Product Action Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -381,7 +364,7 @@ private fun SearchAndCatalogView(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Поиск продукта или бренда") },
+                placeholder = { Text("Поиск продукта") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -392,20 +375,19 @@ private fun SearchAndCatalogView(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Button(
-                onClick = onOpenScanner,
+                onClick = onOpenCreateProduct,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
             ) {
                 Icon(
-                    imageVector = Icons.Default.QrCodeScanner,
-                    contentDescription = "Сканировать штрих-код",
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Добавить продукт",
                     modifier = Modifier.size(22.dp)
                 )
             }
         }
 
-        // Quick create custom product button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -497,9 +479,9 @@ private fun ProductCatalogItemRow(
                         )
                     }
                 }
-                if (product.brand.isNotBlank()) {
+                if (product.desc.isNotBlank()) {
                     Text(
-                        text = product.brand,
+                        text = product.desc,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

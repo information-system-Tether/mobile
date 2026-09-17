@@ -595,7 +595,7 @@ private fun AuthCard(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Login, 1 = Register
 
-    var email by remember { mutableStateOf("harp.mtw@gmail.com") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }

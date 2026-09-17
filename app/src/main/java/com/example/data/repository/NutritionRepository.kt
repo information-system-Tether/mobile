@@ -1,6 +1,5 @@
 package com.example.data.repository
 
-import com.example.data.api.OpenFoodFactsClient
 import com.example.data.db.AppDatabase
 import com.example.data.db.CustomProductEntity
 import com.example.data.db.DailyGoalsEntity
@@ -105,41 +104,6 @@ class NutritionRepository(private val database: AppDatabase) {
         dao.setDailyGoals(DailyGoalsEntity.fromDomain(goals))
     }
 
-    suspend fun findProductByBarcode(barcode: String): Result<FoodProduct> = withContext(Dispatchers.IO) {
-        val cleanBarcode = barcode.trim()
-        if (cleanBarcode.isEmpty()) {
-            return@withContext Result.failure(IllegalArgumentException("Пустой штрих-код"))
-        }
-
-        // 1. Check local custom products
-        val localCustom = dao.getCustomProductByBarcode(cleanBarcode)
-        if (localCustom != null) {
-            val isFav = dao.isProductFavorite(localCustom.id.toString())
-            return@withContext Result.success(localCustom.toDomain().copy(isFavorite = isFav))
-        }
-
-        // 2. Check offline default catalogue
-        val defaultMatch = DefaultFoodDatabase.findByBarcode(cleanBarcode)
-        if (defaultMatch != null) {
-            val isFav = dao.isProductFavorite(defaultMatch.id)
-            return@withContext Result.success(defaultMatch.copy(isFavorite = isFav))
-        }
-
-        // 3. Query Open Food Facts API (Russia / Worldwide)
-        try {
-            val remoteResult = OpenFoodFactsClient.fetchProductByBarcode(cleanBarcode)
-            if (remoteResult.isSuccess) {
-                val remoteProduct = remoteResult.getOrThrow()
-                val isFav = dao.isProductFavorite(remoteProduct.id)
-                Result.success(remoteProduct.copy(isFavorite = isFav))
-            } else {
-                Result.failure(remoteResult.exceptionOrNull() ?: Exception("Продукт не найден"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
     suspend fun searchProducts(query: String, favoriteIds: Set<String> = emptySet()): List<FoodProduct> = withContext(Dispatchers.IO) {
         val customMatches = if (query.isNotBlank()) {
             dao.searchCustomProducts(query).map { it.toDomain() }
@@ -152,8 +116,8 @@ class NutritionRepository(private val database: AppDatabase) {
         val result = mutableListOf<FoodProduct>()
 
         (customMatches + defaultMatches).forEach { prod ->
-            val key = prod.barcode ?: prod.id
-            val isFav = favoriteIds.contains(prod.id) || (prod.barcode != null && favoriteIds.contains(prod.barcode))
+            val key = prod.id
+            val isFav = favoriteIds.contains(prod.id)
             val enrichedProd = prod.copy(isFavorite = isFav)
 
             if (key.isNotBlank() && seen.add(key)) {

@@ -2,6 +2,8 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.repository.DefaultFoodDatabase
+import org.junit.Assert
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,9 +23,9 @@ class ExampleRobolectricTest {
 
   @Test
   fun `food calculation is accurate for portion weight`() {
-    val banana = com.example.data.repository.DefaultFoodDatabase.findByBarcode("4607004891118")
-    org.junit.Assert.assertNotNull(banana)
-    val calculated = banana!!.calculateForWeight(200f) // 200g of Milk
+    val milk = DefaultFoodDatabase.search("Молоко").firstOrNull()
+    Assert.assertNotNull(milk)
+    val calculated = milk!!.calculateForWeight(200f) // 200g of Milk
     assertEquals(120f, calculated.calories, 0.5f)
     assertEquals(6.0f, calculated.protein, 0.5f)
   }

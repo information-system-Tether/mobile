@@ -3,8 +3,7 @@ package com.example.data.model
 data class FoodProduct(
     val id: String = "",
     val name: String,
-    val brand: String = "",
-    val barcode: String? = null,
+    val desc: String = "",
     val caloriesPer100g: Float,
     val proteinPer100g: Float,
     val fatPer100g: Float,
@@ -46,8 +45,7 @@ data class LoggedFood(
     val date: String, // Format: YYYY-MM-DD
     val mealType: MealType,
     val name: String,
-    val brand: String = "",
-    val barcode: String? = null,
+    val desc: String = "",
     val weightGrams: Float,
     val calories: Float,
     val protein: Float,

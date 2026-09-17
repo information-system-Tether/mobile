@@ -7,8 +7,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_1",
             name = "Овсяные хлопья «Геркулес»",
-            brand = "Традиционный",
-            barcode = "4601234567890",
+            desc = "Традиционный геркулес высокого качества",
             caloriesPer100g = 352f,
             proteinPer100g = 12.3f,
             fatPer100g = 6.2f,
@@ -22,8 +21,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_2",
             name = "Куриное филе (грудка)",
-            brand = "Свежее филе",
-            barcode = "4609876543210",
+            desc = "Свежее охлажденное куриное филе",
             caloriesPer100g = 113f,
             proteinPer100g = 23.6f,
             fatPer100g = 1.9f,
@@ -37,8 +35,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_3",
             name = "Гречневая крупа ядрица",
-            brand = "Увелка",
-            barcode = "4605678901234",
+            desc = "Цельное отборное гречневое зерно",
             caloriesPer100g = 313f,
             proteinPer100g = 12.6f,
             fatPer100g = 3.3f,
@@ -52,8 +49,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_4",
             name = "Творог 5%",
-            brand = "Простоквашино",
-            barcode = "4607004892214",
+            desc = "Натуральный классический творог",
             caloriesPer100g = 121f,
             proteinPer100g = 16.0f,
             fatPer100g = 5.0f,
@@ -67,8 +63,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_5",
             name = "Банан свежий",
-            brand = "Эквадор",
-            barcode = "4603456789012",
+            desc = "Сладкие спелые бананы",
             caloriesPer100g = 89f,
             proteinPer100g = 1.1f,
             fatPer100g = 0.3f,
@@ -81,9 +76,8 @@ object DefaultFoodDatabase {
         ),
         FoodProduct(
             id = "def_6",
-            name = "Яйцо куриное категории C0 (1 шт)",
-            brand = "Окское",
-            barcode = "4604567890123",
+            name = "Яйцо куриное категории C0",
+            desc = "Отборное диетическое яйцо C0",
             caloriesPer100g = 157f,
             proteinPer100g = 12.7f,
             fatPer100g = 11.5f,
@@ -97,8 +91,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_7",
             name = "Йогурт греческий натуральный 2%",
-            brand = "Teos",
-            barcode = "4810268026195",
+            desc = "Густой высокобелковый йогурт",
             caloriesPer100g = 67f,
             proteinPer100g = 8.0f,
             fatPer100g = 2.0f,
@@ -112,8 +105,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_8",
             name = "Авокадо Хасс",
-            brand = "Fresh",
-            barcode = "4608765432198",
+            desc = "Маслянистое спелое авокадо",
             caloriesPer100g = 160f,
             proteinPer100g = 2.0f,
             fatPer100g = 14.7f,
@@ -127,8 +119,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_9",
             name = "Лосось атлантический (семга)",
-            brand = "Свежая рыба",
-            barcode = "4602345678901",
+            desc = "Охлажденное филе атлантического лосося",
             caloriesPer100g = 208f,
             proteinPer100g = 20.4f,
             fatPer100g = 13.4f,
@@ -142,8 +133,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_10",
             name = "Хлеб ржаной цельнозерновой",
-            brand = "Бородинский",
-            barcode = "4606789012345",
+            desc = "Ароматный ржаной цельнозерновой хлеб",
             caloriesPer100g = 207f,
             proteinPer100g = 6.8f,
             fatPer100g = 1.3f,
@@ -156,9 +146,8 @@ object DefaultFoodDatabase {
         ),
         FoodProduct(
             id = "def_11",
-            name = "Протеиновый батончик печенье-крем",
-            brand = "Bombbar",
-            barcode = "4680026210014",
+            name = "Протеиновый батончик",
+            desc = "Низкокалорийный батончик с высоким белком",
             caloriesPer100g = 320f,
             proteinPer100g = 33.3f,
             fatPer100g = 10.8f,
@@ -172,8 +161,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_12",
             name = "Молоко пастеризованное 3.2%",
-            brand = "Домик в деревне",
-            barcode = "4607004891118",
+            desc = "Питьевое пастеризованное молоко",
             caloriesPer100g = 60f,
             proteinPer100g = 3.0f,
             fatPer100g = 3.2f,
@@ -187,8 +175,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_13",
             name = "Яблоко зеленое Гренни Смит",
-            brand = "Свежий урожай",
-            barcode = "4601122334455",
+            desc = "Сочное кисло-сладкое зеленое яблоко",
             caloriesPer100g = 52f,
             proteinPer100g = 0.3f,
             fatPer100g = 0.2f,
@@ -202,8 +189,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_14",
             name = "Рис белый Басмати",
-            brand = "Мистраль",
-            barcode = "4607062480019",
+            desc = "Длиннозерный ароматный белый рис",
             caloriesPer100g = 345f,
             proteinPer100g = 7.5f,
             fatPer100g = 1.0f,
@@ -217,8 +203,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_15",
             name = "Шоколад горький 75% какао",
-            brand = "Бабаевский",
-            barcode = "4600080340058",
+            desc = "Темный горький шоколад с высоким какао",
             caloriesPer100g = 545f,
             proteinPer100g = 8.5f,
             fatPer100g = 38.0f,
@@ -232,8 +217,7 @@ object DefaultFoodDatabase {
         FoodProduct(
             id = "def_16",
             name = "Миндаль жареный несоленый",
-            brand = "Nut Club",
-            barcode = "4607788990011",
+            desc = "Хрустящий жареный ядерный миндаль",
             caloriesPer100g = 609f,
             proteinPer100g = 18.6f,
             fatPer100g = 53.7f,
@@ -246,19 +230,13 @@ object DefaultFoodDatabase {
         )
     )
 
-    fun findByBarcode(barcode: String): FoodProduct? {
-        val clean = barcode.trim()
-        return items.firstOrNull { it.barcode?.trim() == clean }
-    }
-
     fun search(query: String): List<FoodProduct> {
         val q = query.trim().lowercase()
         if (q.isEmpty()) return items
         return items.filter {
             it.name.lowercase().contains(q) ||
-            it.brand.lowercase().contains(q) ||
-            it.category.lowercase().contains(q) ||
-            (it.barcode != null && it.barcode.contains(q))
+            it.desc.lowercase().contains(q) ||
+            it.category.lowercase().contains(q)
         }
     }
 }

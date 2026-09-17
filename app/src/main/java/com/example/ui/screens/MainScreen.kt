@@ -1,8 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +24,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.LocalGroceryStore
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -64,21 +60,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.model.DailyNutrientStats
+import com.example.data.model.FoodProduct
+import com.example.data.model.LoggedFood
 import com.example.data.model.MealType
 import com.example.data.model.SyncStatus
 import com.example.data.model.Workout
 import com.example.ui.components.AddFoodBottomSheet
 import com.example.ui.components.AddWorkoutBottomSheet
-import com.example.ui.components.BarcodeScannerDialog
 import com.example.ui.components.CalorieSummaryCard
 import com.example.ui.components.CreateProductDialog
 import com.example.ui.components.MealSectionCard
 import com.example.ui.components.StepTrackerCard
 import com.example.ui.components.WaterTrackerCard
 import com.example.ui.components.WorkoutTrackerCard
-import com.example.ui.theme.NutrientCarbs
-import com.example.ui.theme.NutrientFat
-import com.example.ui.theme.NutrientProtein
 import com.example.ui.theme.PrimaryGreen
 import com.example.ui.viewmodel.NutritionViewModel
 
@@ -92,6 +87,8 @@ fun MainScreen(
     val workouts by viewModel.workouts.collectAsStateWithLifecycle()
     val account by viewModel.account.collectAsStateWithLifecycle()
     val backupInfo by viewModel.backupInfo.collectAsStateWithLifecycle()
+    val communityTracks by viewModel.communityTracks.collectAsStateWithLifecycle()
+    val myTracks by viewModel.myTracks.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -116,6 +113,14 @@ fun MainScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.openSettings() }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Настройки",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(2.dp))
                     // Плашка статуса синхронизации в верхней панели
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -188,8 +193,8 @@ fun MainScreen(
                 NavigationBarItem(
                     selected = uiState.activeTab == 2,
                     onClick = { viewModel.setActiveTab(2) },
-                    icon = { Icon(Icons.Default.Insights, contentDescription = "Статистика") },
-                    label = { Text("Статистика") },
+                    icon = { Icon(Icons.Default.Map, contentDescription = "Трекинг") },
+                    label = { Text("Трекинг") },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = PrimaryGreen,
                         selectedTextColor = PrimaryGreen,
@@ -254,15 +259,14 @@ fun MainScreen(
                         viewModel.openAddFoodSheet(MealType.LUNCH, prod)
                     },
                     onToggleFavorite = { prod -> viewModel.toggleFavoriteProduct(prod) },
-                    onOpenScanner = { viewModel.openScanner() },
                     onOpenCreateProduct = { viewModel.openCreateProductSheet() }
                 )
 
-                2 -> StatisticsTabContent(
-                    stats = dailyStats,
-                    dateTitle = uiState.formattedDateTitle,
-                    onPrevDay = { viewModel.changeDate(-1) },
-                    onNextDay = { viewModel.changeDate(1) }
+                2 -> TrackingScreen(
+                    communityTracks = communityTracks,
+                    myTracks = myTracks,
+                    onAddTrack = { track -> viewModel.addTrack(track) },
+                    onDeleteTrack = { id -> viewModel.deleteTrack(id) }
                 )
 
                 3 -> AccountScreen(
@@ -297,7 +301,6 @@ fun MainScreen(
                 viewModel.logFoodItem(product, meal, weight)
             },
             onToggleFavorite = { prod -> viewModel.toggleFavoriteProduct(prod) },
-            onOpenScanner = { viewModel.openScanner() },
             onOpenCreateProduct = { viewModel.openCreateProductSheet() },
             onDismiss = { viewModel.closeAddFoodSheet() }
         )
@@ -312,26 +315,31 @@ fun MainScreen(
         )
     }
 
-    if (uiState.showScanner) {
-        BarcodeScannerDialog(
-            isLoading = uiState.isScannerLoading,
-            errorMessage = uiState.scanErrorMessage,
-            onBarcodeDetected = { barcode -> viewModel.onBarcodeDetected(barcode) },
-            onDismiss = { viewModel.closeScanner() }
-        )
-    }
-
     if (uiState.showCreateProductSheet) {
         CreateProductDialog(
             onSave = { newProd -> viewModel.saveCustomProduct(newProd) },
             onDismiss = { viewModel.closeCreateProductSheet() }
         )
     }
+
+    if (uiState.showSettings) {
+        val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
+        SettingsScreen(
+            themeConfig = themeConfig,
+            isHealthConnectConnected = uiState.isHealthConnectConnected,
+            isHealthConnectAvailable = uiState.isHealthConnectAvailable,
+            onToggleMonet = { viewModel.setUseMonet(it) },
+            onSelectPalette = { viewModel.setPalette(it) },
+            onSelectDarkThemeMode = { viewModel.setDarkThemeMode(it) },
+            onToggleHealthConnect = { viewModel.toggleHealthConnect(it) },
+            onBack = { viewModel.closeSettings() }
+        )
+    }
 }
 
 @Composable
 private fun DiaryTabContent(
-    stats: com.example.data.model.DailyNutrientStats,
+    stats: DailyNutrientStats,
     workouts: List<Workout>,
     dateTitle: String,
     isHealthConnectAvailable: Boolean,
@@ -339,7 +347,7 @@ private fun DiaryTabContent(
     onPrevDay: () -> Unit,
     onNextDay: () -> Unit,
     onAddFood: (MealType) -> Unit,
-    onDeleteFood: (com.example.data.model.LoggedFood) -> Unit,
+    onDeleteFood: (LoggedFood) -> Unit,
     onAddWater: (Int) -> Unit,
     onAddWorkoutClick: () -> Unit,
     onDeleteWorkout: (Long) -> Unit,
@@ -416,68 +424,12 @@ private fun DiaryTabContent(
 }
 
 @Composable
-private fun StatisticsTabContent(
-    stats: com.example.data.model.DailyNutrientStats,
-    dateTitle: String,
-    onPrevDay: () -> Unit,
-    onNextDay: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        CalorieSummaryCard(
-            stats = stats,
-            dateTitle = dateTitle,
-            onPreviousDay = onPrevDay,
-            onNextDay = onNextDay
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(18.dp)) {
-                Text(
-                    text = "Итоговая активность за день",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("Пройдено шагов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${stats.stepsCount}", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color(0xFF0091EA))
-                    }
-                    Column {
-                        Text("Тренировки", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${stats.workoutCount}", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color(0xFFFF5722))
-                    }
-                    Column {
-                        Text("Сожжено всего", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("-${stats.totalBurnedCalories.toInt()} ккал", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = PrimaryGreen)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ProductsDatabaseTabContent(
     searchQuery: String,
-    searchResults: List<com.example.data.model.FoodProduct>,
+    searchResults: List<FoodProduct>,
     onSearchQueryChange: (String) -> Unit,
-    onSelectProduct: (com.example.data.model.FoodProduct) -> Unit,
-    onToggleFavorite: (com.example.data.model.FoodProduct) -> Unit,
-    onOpenScanner: () -> Unit,
+    onSelectProduct: (FoodProduct) -> Unit,
+    onToggleFavorite: (FoodProduct) -> Unit,
     onOpenCreateProduct: () -> Unit
 ) {
     LazyColumn(
@@ -494,7 +446,7 @@ private fun ProductsDatabaseTabContent(
                     value = searchQuery,
                     onValueChange = onSearchQueryChange,
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Поиск продукта или бренда") },
+                    placeholder = { Text("Поиск продукта") },
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -563,9 +515,9 @@ private fun ProductsDatabaseTabContent(
                                 )
                             }
                         }
-                        if (product.brand.isNotBlank()) {
+                        if (product.desc.isNotBlank()) {
                             Text(
-                                text = product.brand,
+                                text = product.desc,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

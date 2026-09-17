@@ -5,19 +5,25 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.AppDatabase
 import com.example.data.health.HealthConnectManager
+import com.example.data.health.StepSensorManager
 import com.example.data.model.CloudBackupInfo
 import com.example.data.model.DailyGoals
 import com.example.data.model.DailyNutrientStats
 import com.example.data.model.FoodProduct
+import com.example.data.model.GpxTrack
 import com.example.data.model.LoggedFood
 import com.example.data.model.MealType
-import com.example.data.model.SyncStatus
 import com.example.data.model.UserAccount
 import com.example.data.model.Workout
 import com.example.data.model.WorkoutCategory
 import com.example.data.repository.AccountRepository
+import com.example.data.repository.AppThemeConfig
+import com.example.data.repository.AppThemePalette
+import com.example.data.repository.DarkThemeMode
 import com.example.data.repository.DefaultFoodDatabase
 import com.example.data.repository.NutritionRepository
+import com.example.data.repository.ThemeRepository
+import com.example.data.repository.TrackRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,11 +49,9 @@ data class NutritionUiState(
     val showAddFoodSheet: Boolean = false,
     val targetMealForAdd: MealType = MealType.BREAKFAST,
     val selectedFoodToLog: FoodProduct? = null,
-    val showScanner: Boolean = false,
-    val isScannerLoading: Boolean = false,
-    val scanErrorMessage: String? = null,
     val showCreateProductSheet: Boolean = false,
     val showAddWorkoutSheet: Boolean = false,
+    val showSettings: Boolean = false,
     val isHealthConnectAvailable: Boolean = true,
     val isHealthConnectConnected: Boolean = false,
     val snackbarMessage: String? = null
@@ -56,9 +60,15 @@ data class NutritionUiState(
 class NutritionViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = NutritionRepository(AppDatabase.getDatabase(application))
     private val accountRepository = AccountRepository(application)
+    private val trackRepository = TrackRepository(application)
+    private val themeRepository = ThemeRepository(application)
     val healthConnectManager = HealthConnectManager(application)
+    val stepSensorManager = StepSensorManager(application)
 
     val account: StateFlow<UserAccount> = accountRepository.accountState
+    val themeConfig: StateFlow<AppThemeConfig> = themeRepository.themeConfig
+    val communityTracks: StateFlow<List<GpxTrack>> = trackRepository.communityTracks
+    val myTracks: StateFlow<List<GpxTrack>> = trackRepository.myTracks
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val displayFormat = SimpleDateFormat("d MMMM, EEEE", Locale("ru"))
@@ -191,8 +201,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
             it.copy(
                 showAddFoodSheet = true,
                 targetMealForAdd = mealType,
-                selectedFoodToLog = preselectedProduct,
-                scanErrorMessage = null
+                selectedFoodToLog = preselectedProduct
             )
         }
     }
@@ -214,20 +223,6 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(selectedFoodToLog = null) }
     }
 
-    fun openScanner() {
-        _uiState.update {
-            it.copy(
-                showScanner = true,
-                scanErrorMessage = null,
-                isScannerLoading = false
-            )
-        }
-    }
-
-    fun closeScanner() {
-        _uiState.update { it.copy(showScanner = false, scanErrorMessage = null) }
-    }
-
     fun openCreateProductSheet() {
         _uiState.update { it.copy(showCreateProductSheet = true) }
     }
@@ -244,39 +239,32 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(showAddWorkoutSheet = false) }
     }
 
+    fun openSettings() {
+        _uiState.update { it.copy(showSettings = true) }
+    }
+
+    fun closeSettings() {
+        _uiState.update { it.copy(showSettings = false) }
+    }
+
+    fun setUseMonet(enabled: Boolean) {
+        themeRepository.setUseMonet(enabled)
+    }
+
+    fun setPalette(palette: AppThemePalette) {
+        themeRepository.setPalette(palette)
+    }
+
+    fun setDarkThemeMode(mode: DarkThemeMode) {
+        themeRepository.setDarkThemeMode(mode)
+    }
+
     fun dismissSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
     }
 
     fun showMessage(msg: String) {
         _uiState.update { it.copy(snackbarMessage = msg) }
-    }
-
-    fun onBarcodeDetected(barcode: String) {
-        if (_uiState.value.isScannerLoading) return
-        _uiState.update { it.copy(isScannerLoading = true, scanErrorMessage = null) }
-
-        viewModelScope.launch {
-            val result = repository.findProductByBarcode(barcode)
-            result.onSuccess { product ->
-                _uiState.update {
-                    it.copy(
-                        isScannerLoading = false,
-                        showScanner = false,
-                        showAddFoodSheet = true,
-                        selectedFoodToLog = product,
-                        snackbarMessage = "Продукт найден: ${product.name}"
-                    )
-                }
-            }.onFailure {
-                _uiState.update {
-                    it.copy(
-                        isScannerLoading = false,
-                        scanErrorMessage = "Штрих-код $barcode не найден в базе. Вы можете добавить продукт вручную."
-                    )
-                }
-            }
-        }
     }
 
     fun performSearch(query: String) {
@@ -294,7 +282,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun toggleFavoriteProduct(product: FoodProduct) {
         viewModelScope.launch {
-            val targetKey = if (product.id.isNotBlank()) product.id else (product.barcode ?: product.name)
+            val targetKey = product.id
             repository.toggleFavorite(targetKey)
             val isNowFav = !_uiState.value.favoriteProductIds.contains(targetKey)
             _uiState.update {
@@ -317,8 +305,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
                 date = _currentDate.value,
                 mealType = mealType,
                 name = product.name,
-                brand = product.brand,
-                barcode = product.barcode,
+                desc = product.desc,
                 weightGrams = weightGrams,
                 calories = calc.calories,
                 protein = calc.protein,
@@ -409,6 +396,21 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // GPX Трекинг
+    fun addTrack(track: GpxTrack) {
+        viewModelScope.launch {
+            trackRepository.addTrack(track)
+            _uiState.update { it.copy(snackbarMessage = "Маршрут «${track.title}» сохранен в вашей коллекции") }
+        }
+    }
+
+    fun deleteTrack(trackId: String) {
+        viewModelScope.launch {
+            trackRepository.deleteTrack(trackId)
+            _uiState.update { it.copy(snackbarMessage = "Маршрут удален из коллекции") }
+        }
+    }
+
     // Шагомер и интеграция с Health Connect
     fun updateSteps(steps: Int) {
         viewModelScope.launch {
@@ -427,12 +429,15 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         accountRepository.setHealthConnectConnected(true)
         _uiState.update { it.copy(isHealthConnectConnected = true) }
         viewModelScope.launch {
-            // Чтение и синхронизация шагов из службы Health Connect
-            val initialSteps = 6420
+            val initialSteps = if (stepSensorManager.isSensorAvailable) {
+                stepSensorManager.sensorSteps.value.coerceAtLeast(1500)
+            } else {
+                1500
+            }
             val burned = healthConnectManager.calculateBurnedCalories(initialSteps)
             repository.updateDailySteps(_currentDate.value, initialSteps, burned, true)
             _uiState.update {
-                it.copy(snackbarMessage = "Health Connect подключен: получено 6,420 шагов")
+                it.copy(snackbarMessage = "Health Connect синхронизирован: %,d шагов".format(initialSteps))
             }
             triggerAutoSync()
         }

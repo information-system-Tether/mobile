@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,15 +41,13 @@ import com.example.ui.theme.PrimaryGreen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateProductDialog(
-    initialBarcode: String? = null,
     onSave: (FoodProduct) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var name by remember { mutableStateOf("") }
-    var brand by remember { mutableStateOf("") }
-    var barcode by remember { mutableStateOf(initialBarcode ?: "") }
+    var desc by remember { mutableStateOf("") }
     var kcal by remember { mutableStateOf("") }
     var protein by remember { mutableStateOf("") }
     var fat by remember { mutableStateOf("") }
@@ -109,27 +106,16 @@ fun CreateProductDialog(
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
                 )
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = brand,
-                        onValueChange = { brand = it },
-                        label = { Text("Бренд / Производитель") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
-                    )
-                    OutlinedTextField(
-                        value = barcode,
-                        onValueChange = { barcode = it },
-                        label = { Text("Штрих-код") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
-                    )
-                }
+                OutlinedTextField(
+                    value = desc,
+                    onValueChange = { desc = it },
+                    label = { Text("Описание продукта") },
+                    placeholder = { Text("Например: Обезжиренный, диетический") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
+                )
 
                 Text(
                     text = "Пищевая ценность на 100 грамм:",
@@ -211,8 +197,7 @@ fun CreateProductDialog(
                         val newProduct = FoodProduct(
                             id = System.currentTimeMillis().toString(),
                             name = name.trim(),
-                            brand = brand.trim(),
-                            barcode = barcode.trim().ifEmpty { null },
+                            desc = desc.trim(),
                             caloriesPer100g = kcal.toFloatOrNull() ?: 0f,
                             proteinPer100g = protein.toFloatOrNull() ?: 0f,
                             fatPer100g = fat.toFloatOrNull() ?: 0f,

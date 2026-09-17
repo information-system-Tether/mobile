@@ -33,9 +33,6 @@ interface FoodDao {
     @Query("SELECT * FROM custom_products ORDER BY id DESC")
     fun getAllCustomProducts(): Flow<List<CustomProductEntity>>
 
-    @Query("SELECT * FROM custom_products WHERE barcode = :barcode LIMIT 1")
-    suspend fun getCustomProductByBarcode(barcode: String): CustomProductEntity?
-
     @Query("SELECT * FROM custom_products WHERE name LIKE '%' || :query || '%'")
     suspend fun searchCustomProducts(query: String): List<CustomProductEntity>
 

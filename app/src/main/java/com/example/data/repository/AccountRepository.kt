@@ -20,13 +20,13 @@ class AccountRepository(context: Context) {
     val accountState: StateFlow<UserAccount> = _accountState.asStateFlow()
 
     private fun loadAccount(): UserAccount {
-        val isLoggedIn = prefs.getBoolean(KEY_IS_LOGGED_IN, true)
-        val email = prefs.getString(KEY_EMAIL, "harp.mtw@gmail.com") ?: "harp.mtw@gmail.com"
-        val displayName = prefs.getString(KEY_DISPLAY_NAME, "Harp M.") ?: "Harp M."
-        val userId = prefs.getString(KEY_USER_ID, "usr_harp_mtw") ?: "usr_harp_mtw"
+        val isLoggedIn = prefs.getBoolean(KEY_IS_LOGGED_IN, false)
+        val email = prefs.getString(KEY_EMAIL, "") ?: ""
+        val displayName = prefs.getString(KEY_DISPLAY_NAME, "") ?: ""
+        val userId = prefs.getString(KEY_USER_ID, "") ?: ""
         val lastSync = prefs.getLong(KEY_LAST_SYNC, System.currentTimeMillis())
         val autoSync = prefs.getBoolean(KEY_AUTO_SYNC, true)
-        val syncedCount = prefs.getInt(KEY_SYNCED_COUNT, 8)
+        val syncedCount = prefs.getInt(KEY_SYNCED_COUNT, 0)
 
         return UserAccount(
             userId = userId,
@@ -118,8 +118,18 @@ class AccountRepository(context: Context) {
     }
 
     fun logout() {
-        val current = _accountState.value
-        val loggedOut = current.copy(
+        prefs.edit()
+            .putBoolean(KEY_IS_LOGGED_IN, false)
+            .putString(KEY_EMAIL, "")
+            .putString(KEY_DISPLAY_NAME, "")
+            .putString(KEY_USER_ID, "")
+            .putInt(KEY_SYNCED_COUNT, 0)
+            .apply()
+
+        val loggedOut = UserAccount(
+            userId = "",
+            email = "",
+            displayName = "",
             isLoggedIn = false,
             syncStatus = SyncStatus.OFFLINE
         )

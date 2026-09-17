@@ -47,8 +47,7 @@ data class ProductDto(
         return FoodProduct(
             id = barcode,
             name = resolvedName,
-            brand = brands ?: "",
-            barcode = barcode,
+            desc = brands ?: "",
             caloriesPer100g = kcal,
             proteinPer100g = protein,
             fatPer100g = fat,
@@ -58,7 +57,7 @@ data class ProductDto(
             sodiumPer100g = sodium,
             imageUrl = imageFrontSmallUrl ?: imageFrontUrl,
             defaultServingGrams = 100f,
-            category = "Сканированное"
+            category = "Пользовательское"
         )
     }
 }
