@@ -30,8 +30,9 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Настройка Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Принятие лицензий Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Настройка Gradle Wrapper
         run: |
@@ -47,6 +48,7 @@ jobs:
             echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
           elif [ -f "debug.keystore.base64" ]; then
             base64 -d debug.keystore.base64 > "${{ github.workspace }}/debug.keystore"
           fi
