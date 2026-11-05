@@ -16,3 +16,9 @@
 local.properties
 .env
 debug.keystore
+
+GymMane_repo/
+.idea/deviceManager.xml
+
+backend/
+*.db
