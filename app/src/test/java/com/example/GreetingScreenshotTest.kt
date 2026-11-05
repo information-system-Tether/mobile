@@ -36,8 +36,10 @@ class GreetingScreenshotTest {
             totalCarbs = 160f
           ),
           dateTitle = "Сегодня",
+          canGoForward = false,
           onPreviousDay = {},
-          onNextDay = {}
+          onNextDay = {},
+          onOpenDatePicker = {}
         )
       }
     }

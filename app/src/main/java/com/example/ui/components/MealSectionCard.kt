@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -219,6 +220,104 @@ private fun LoggedFoodItemRow(
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(18.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun UnifiedFoodSectionCard(
+    items: List<LoggedFood>,
+    onAddClick: () -> Unit,
+    onDeleteItem: (LoggedFood) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val totalCalories = items.sumOf { it.calories.toDouble() }.toInt()
+    val totalProtein = items.sumOf { it.protein.toDouble() }.toInt()
+    val totalFat = items.sumOf { it.fat.toDouble() }.toInt()
+    val totalCarbs = items.sumOf { it.carbs.toDouble() }.toInt()
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(PrimaryGreen.copy(alpha = 0.12f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Restaurant,
+                            contentDescription = "Питание",
+                            tint = PrimaryGreen,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Приёмы пищи",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (items.isNotEmpty()) {
+                            Text(
+                                text = "Б: ${totalProtein}г • Ж: ${totalFat}г • У: ${totalCarbs}г",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Text(
+                                text = "Записи за день",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                if (totalCalories > 0) {
+                    Text(
+                        text = "$totalCalories ккал",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = PrimaryGreen
+                    )
+                }
+            }
+
+            if (items.isEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "Пока ничего не добавлено. Используйте кнопку добавления, чтобы внести продукт в дневник.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+                items.forEachIndexed { index, food ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    LoggedFoodItemRow(
+                        food = food,
+                        onDelete = { onDeleteItem(food) }
+                    )
+                }
             }
         }
     }

@@ -49,8 +49,10 @@ import com.example.ui.theme.PrimaryGreen
 fun CalorieSummaryCard(
     stats: DailyNutrientStats,
     dateTitle: String,
+    canGoForward: Boolean,
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit,
+    onOpenDatePicker: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val totalMacro = stats.totalMacroCalories.coerceAtLeast(1f)
@@ -74,7 +76,7 @@ fun CalorieSummaryCard(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
-            // Строка навигации по датам (предыдущий / следующий день)
+            // Строка навигации по датам (предыдущий день / выбор даты / следующий день)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -89,6 +91,7 @@ fun CalorieSummaryCard(
                 }
 
                 Surface(
+                    onClick = onOpenDatePicker,
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier.padding(horizontal = 8.dp)
@@ -99,7 +102,7 @@ fun CalorieSummaryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CalendarToday,
-                            contentDescription = null,
+                            contentDescription = "Выбрать дату",
                             modifier = Modifier.size(14.dp),
                             tint = PrimaryGreen
                         )
@@ -112,12 +115,16 @@ fun CalorieSummaryCard(
                     }
                 }
 
-                IconButton(onClick = onNextDay, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Следующий день",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+                if (canGoForward) {
+                    IconButton(onClick = onNextDay, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Следующий день",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.size(36.dp))
                 }
             }
 

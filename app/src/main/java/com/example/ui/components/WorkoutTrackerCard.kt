@@ -87,14 +87,14 @@ fun WorkoutTrackerCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFFF5722).copy(alpha = 0.12f),
+                        color = MaterialTheme.colorScheme.primaryContainer,
                         modifier = Modifier.size(40.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.FitnessCenter,
                                 contentDescription = null,
-                                tint = Color(0xFFFF5722),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -102,12 +102,12 @@ fun WorkoutTrackerCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Тренировки и активность",
+                            text = "Тренировки",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (workouts.isEmpty()) "Нет добавленных тренировок" else "$totalMinutes мин • сожжено $totalBurned ккал",
+                            text = if (workouts.isEmpty()) "Нет тренировок за этот день" else "$totalMinutes мин • сожжено $totalBurned ккал",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -117,7 +117,7 @@ fun WorkoutTrackerCard(
                 Surface(
                     onClick = onAddWorkoutClick,
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFFF5722),
+                    color = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                     modifier = Modifier.size(38.dp)
                 ) {

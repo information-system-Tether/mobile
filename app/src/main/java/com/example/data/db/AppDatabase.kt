@@ -13,9 +13,12 @@ import androidx.room.RoomDatabase
         WaterLogEntity::class,
         FavoriteProductEntity::class,
         WorkoutEntity::class,
-        DailyStepEntity::class
+        DailyStepEntity::class,
+        WorkoutSessionEntity::class,
+        CustomRoutineEntity::class,
+        CustomExerciseEntity::class
     ],
-    version = 2,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -36,5 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance
             }
         }
+
+        fun getInstance(context: Context): AppDatabase = getDatabase(context)
     }
 }

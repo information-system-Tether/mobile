@@ -14,24 +14,37 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.NutrientWater
@@ -43,10 +56,10 @@ fun WaterTrackerCard(
     onAddWater: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val progress = if (goalMl > 0) (consumedMl.toFloat() / goalMl.toFloat()).coerceIn(0f, 1f) else 0f
-    val glassesCount = 8
-    val glassVolumeMl = goalMl / glassesCount
-    val filledGlasses = (consumedMl / glassVolumeMl).coerceIn(0, glassesCount)
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    val safeGoal = if (goalMl > 0) goalMl else 2000
+    val progress = (consumedMl.toFloat() / safeGoal.toFloat()).coerceIn(0f, 1f)
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -55,6 +68,7 @@ fun WaterTrackerCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
+            // Header: Icon + Info and Actions (+ / -)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -82,36 +96,51 @@ fun WaterTrackerCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "$consumedMl из $goalMl мл (${(progress * 100).toInt()}%)",
+                            text = "$consumedMl из $safeGoal мл (${(progress * 100).toInt()}%)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Action buttons: + and -
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // + button (opens Add Water Dialog)
                     IconButton(
-                        onClick = { onAddWater(-250) },
-                        enabled = consumedMl > 0,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Remove,
-                            contentDescription = "Уменьшить воду",
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = { onAddWater(250) },
+                        onClick = { showAddDialog = true },
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .background(NutrientWater.copy(alpha = 0.15f), CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Добавить 250 мл",
-                            tint = NutrientWater
+                            contentDescription = "Добавить воду",
+                            tint = NutrientWater,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // - button (decrease water)
+                    IconButton(
+                        onClick = { onAddWater(-250) },
+                        enabled = consumedMl > 0,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                if (consumedMl > 0) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                                CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Remove,
+                            contentDescription = "Уменьшить воду",
+                            tint = if (consumedMl > 0) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -119,6 +148,7 @@ fun WaterTrackerCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Progress Bar
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
@@ -129,38 +159,133 @@ fun WaterTrackerCard(
                 trackColor = NutrientWater.copy(alpha = 0.15f),
                 strokeCap = StrokeCap.Round
             )
+        }
+    }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 8 Visual cups representation
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                for (i in 1..glassesCount) {
-                    val isFilled = i <= filledGlasses
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (isFilled) NutrientWater else NutrientWater.copy(alpha = 0.12f)
-                            )
-                            .clickable {
-                                val targetAmount = i * glassVolumeMl
-                                onAddWater(targetAmount - consumedMl)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocalDrink,
-                            contentDescription = "Стакан $i",
-                            tint = if (isFilled) MaterialTheme.colorScheme.surface else NutrientWater.copy(alpha = 0.5f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
+    if (showAddDialog) {
+        AddWaterDialog(
+            onAdd = { amount ->
+                if (amount > 0) {
+                    onAddWater(amount)
                 }
+                showAddDialog = false
+            },
+            onDismiss = { showAddDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun AddWaterDialog(
+    onAdd: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var customAmountText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        title = {
+            Text(
+                text = "Добавить воду",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Быстрый выбор объёма:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Preset chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    WaterPresetChip(label = "+150", sub = "чашка", onClick = { customAmountText = "150" }, modifier = Modifier.weight(1f))
+                    WaterPresetChip(label = "+250", sub = "стакан", onClick = { customAmountText = "250" }, modifier = Modifier.weight(1f))
+                    WaterPresetChip(label = "+350", sub = "кружка", onClick = { customAmountText = "350" }, modifier = Modifier.weight(1f))
+                    WaterPresetChip(label = "+500", sub = "бутылка", onClick = { customAmountText = "500" }, modifier = Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Укажите выпитый объём в миллилитрах:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = customAmountText,
+                    onValueChange = { customAmountText = it.filter { ch -> ch.isDigit() } },
+                    placeholder = { Text("Например: 400") },
+                    suffix = { Text("мл") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = NutrientWater,
+                        focusedLabelColor = NutrientWater
+                    )
+                )
             }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amount = customAmountText.toIntOrNull() ?: 0
+                    if (amount > 0) {
+                        onAdd(amount)
+                    }
+                },
+                enabled = customAmountText.toIntOrNull()?.let { it > 0 } == true,
+                colors = ButtonDefaults.buttonColors(containerColor = NutrientWater),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("Добавить", fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
+}
+
+@Composable
+private fun WaterPresetChip(
+    label: String,
+    sub: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = NutrientWater.copy(alpha = 0.12f),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = NutrientWater
+            )
+            Text(
+                text = sub,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

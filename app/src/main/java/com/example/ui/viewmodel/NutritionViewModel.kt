@@ -4,18 +4,30 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.AppDatabase
-import com.example.data.health.HealthConnectManager
 import com.example.data.health.StepSensorManager
 import com.example.data.model.CloudBackupInfo
 import com.example.data.model.DailyGoals
 import com.example.data.model.DailyNutrientStats
+import com.example.data.model.Equipment
+import com.example.data.model.Exercise
 import com.example.data.model.FoodProduct
 import com.example.data.model.GpxTrack
+import com.example.data.model.MuscleGroup
+import com.example.data.model.LoggedExercise
 import com.example.data.model.LoggedFood
+import com.example.data.model.LoggedSet
 import com.example.data.model.MealType
+import com.example.data.model.PersonalRecord
+import com.example.data.model.SetKind
 import com.example.data.model.UserAccount
 import com.example.data.model.Workout
+import com.example.data.model.SmartInsight
+import com.example.data.model.SmartInsightsEngine
+import com.example.data.model.WeeklyAnalytics
+import kotlinx.coroutines.flow.combine
 import com.example.data.model.WorkoutCategory
+import com.example.data.model.WorkoutRoutine
+import com.example.data.model.WorkoutSession
 import com.example.data.repository.AccountRepository
 import com.example.data.repository.AppThemeConfig
 import com.example.data.repository.AppThemePalette
@@ -24,6 +36,7 @@ import com.example.data.repository.DefaultFoodDatabase
 import com.example.data.repository.NutritionRepository
 import com.example.data.repository.ThemeRepository
 import com.example.data.repository.TrackRepository
+import com.example.data.repository.WorkoutRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,16 +45,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 data class NutritionUiState(
     val selectedDate: String,
     val formattedDateTitle: String,
-    val activeTab: Int = 0, // 0 = Diary, 1 = Products, 2 = Stats, 3 = Account
+    val activeTab: Int = 0, // 0 = Diary, 1 = Products, 2 = Workouts, 3 = Account
     val searchQuery: String = "",
     val searchResults: List<FoodProduct> = emptyList(),
     val favoriteProductIds: Set<String> = emptySet(),
@@ -52,23 +68,38 @@ data class NutritionUiState(
     val showCreateProductSheet: Boolean = false,
     val showAddWorkoutSheet: Boolean = false,
     val showSettings: Boolean = false,
-    val isHealthConnectAvailable: Boolean = true,
-    val isHealthConnectConnected: Boolean = false,
+    val showAccount: Boolean = false,
+    val isStepTrackingActive: Boolean = true,
+    val activeWorkoutSession: WorkoutSession? = null,
     val snackbarMessage: String? = null
 )
 
 class NutritionViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = NutritionRepository(AppDatabase.getDatabase(application))
+    private val db = AppDatabase.getDatabase(application)
+    private val repository = NutritionRepository(db)
     private val accountRepository = AccountRepository(application)
     private val trackRepository = TrackRepository(application)
     private val themeRepository = ThemeRepository(application)
-    val healthConnectManager = HealthConnectManager(application)
+    private val workoutRepository = WorkoutRepository(application)
     val stepSensorManager = StepSensorManager(application)
 
     val account: StateFlow<UserAccount> = accountRepository.accountState
+    val healthProfile: StateFlow<com.example.data.api.tether.HealthProfileResponse> = accountRepository.healthProfile
     val themeConfig: StateFlow<AppThemeConfig> = themeRepository.themeConfig
     val communityTracks: StateFlow<List<GpxTrack>> = trackRepository.communityTracks
     val myTracks: StateFlow<List<GpxTrack>> = trackRepository.myTracks
+
+    val routines: StateFlow<List<WorkoutRoutine>> = workoutRepository.getAllRoutines()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val catalogExercises: StateFlow<List<Exercise>> = workoutRepository.getAllExercises()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), workoutRepository.defaultCatalogExercises)
+
+    val workoutHistory: StateFlow<List<WorkoutSession>> = workoutRepository.getAllSessions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val personalRecords: StateFlow<List<PersonalRecord>> = workoutRepository.getPersonalRecords()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val displayFormat = SimpleDateFormat("d MMMM, EEEE", Locale("ru"))
@@ -81,8 +112,7 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
             selectedDate = _currentDate.value,
             formattedDateTitle = formatDateTitle(_currentDate.value),
             searchResults = DefaultFoodDatabase.items,
-            isHealthConnectAvailable = healthConnectManager.isHealthConnectAvailable(),
-            isHealthConnectConnected = accountRepository.isHealthConnectConnected()
+            isStepTrackingActive = true
         )
     )
     val uiState: StateFlow<NutritionUiState> = _uiState.asStateFlow()
@@ -105,6 +135,40 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
             initialValue = emptyList()
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val weeklyAnalytics: StateFlow<WeeklyAnalytics> = _currentDate
+        .flatMapLatest { date -> repository.getWeeklyAnalytics(date) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = WeeklyAnalytics(
+                days = emptyList(),
+                averageCalories = 0f,
+                averageProtein = 0f,
+                averageFat = 0f,
+                averageCarbs = 0f,
+                averageWaterMl = 0,
+                averageSteps = 0,
+                totalBurnedCalories = 0f,
+                targetCalories = 2000f,
+                targetWaterMl = 2000,
+                targetSteps = 10000
+            )
+        )
+
+    val smartInsights: StateFlow<List<SmartInsight>> = combine(
+        healthProfile,
+        dailyStats,
+        weeklyAnalytics,
+        workouts
+    ) { hp, stats, weekly, wkList ->
+        SmartInsightsEngine.generateInsights(hp, stats, weekly, wkList.size)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     private val _backupInfo = MutableStateFlow(
         CloudBackupInfo(
             userId = account.value.userId,
@@ -118,7 +182,25 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     val backupInfo: StateFlow<CloudBackupInfo> = _backupInfo.asStateFlow()
 
     init {
-        // Загрузка избранных продуктов и поддержание актуальности результатов поиска
+        // Запуск фоновой службы шагомера
+        try {
+            StepSensorManager.startStepService(application)
+            stepSensorManager.registerListener()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Синхронизация шагов сенсора с Room БД при изменении
+        viewModelScope.launch {
+            stepSensorManager.sensorSteps.collect { steps ->
+                if (steps > 0 && _currentDate.value == dateFormat.format(Date())) {
+                    val burned = StepSensorManager.calculateBurnedCalories(steps)
+                    repository.updateDailySteps(_currentDate.value, steps, burned, false)
+                }
+            }
+        }
+
+        // Загрузка избранного
         viewModelScope.launch {
             repository.getFavoriteProductIds().collect { favList ->
                 val favSet = favList.toSet()
@@ -128,6 +210,18 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         }
 
         refreshBackupInfo()
+
+        // Автономная фоновая синхронизация каждые 5 минут
+        viewModelScope.launch {
+            while (isActive) {
+                delay(5 * 60 * 1000L)
+                if (account.value.isLoggedIn && account.value.autoSyncEnabled) {
+                    val (foods, products, water) = repository.getTotalCounts()
+                    accountRepository.syncNow(foods, products, water)
+                    refreshBackupInfo()
+                }
+            }
+        }
     }
 
     private fun refreshBackupInfo() {
@@ -160,13 +254,25 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun canGoForward(): Boolean {
+        val todayStr = dateFormat.format(Date())
+        return _currentDate.value < todayStr
+    }
+
     fun changeDate(offsetDays: Int) {
         try {
+            val todayStr = dateFormat.format(Date())
+            if (offsetDays > 0 && _currentDate.value >= todayStr) {
+                return
+            }
             val date = dateFormat.parse(_currentDate.value) ?: Date()
             val cal = Calendar.getInstance()
             cal.time = date
             cal.add(Calendar.DAY_OF_YEAR, offsetDays)
             val newDateStr = dateFormat.format(cal.time)
+            if (offsetDays > 0 && newDateStr > todayStr) {
+                return
+            }
             _currentDate.value = newDateStr
             _uiState.update {
                 it.copy(
@@ -175,16 +281,18 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
                 )
             }
         } catch (e: Exception) {
-            // Keep current date on parse failure
+            // Keep current date
         }
     }
 
     fun setDate(dateStr: String) {
-        _currentDate.value = dateStr
+        val todayStr = dateFormat.format(Date())
+        val validDateStr = if (dateStr > todayStr) todayStr else dateStr
+        _currentDate.value = validDateStr
         _uiState.update {
             it.copy(
-                selectedDate = dateStr,
-                formattedDateTitle = formatDateTitle(dateStr)
+                selectedDate = validDateStr,
+                formattedDateTitle = formatDateTitle(validDateStr)
             )
         }
     }
@@ -247,11 +355,27 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { it.copy(showSettings = false) }
     }
 
+    fun openAccount() {
+        _uiState.update { it.copy(showAccount = true) }
+        refreshBackupInfo()
+    }
+
+    fun closeAccount() {
+        _uiState.update { it.copy(showAccount = false) }
+    }
+
+    fun publishTrackToCommunity(track: GpxTrack) {
+        viewModelScope.launch {
+            trackRepository.publishToCommunity(track)
+            _uiState.update { it.copy(snackbarMessage = "Трек «${track.title}» опубликован в комьюнити!") }
+        }
+    }
+
     fun setUseMonet(enabled: Boolean) {
         themeRepository.setUseMonet(enabled)
     }
 
-    fun setPalette(palette: AppThemePalette) {
+    fun setThemePalette(palette: AppThemePalette) {
         themeRepository.setPalette(palette)
     }
 
@@ -259,18 +383,12 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         themeRepository.setDarkThemeMode(mode)
     }
 
-    fun dismissSnackbar() {
-        _uiState.update { it.copy(snackbarMessage = null) }
-    }
-
-    fun showMessage(msg: String) {
-        _uiState.update { it.copy(snackbarMessage = msg) }
-    }
-
     fun performSearch(query: String) {
+        val q = query.trim()
         _uiState.update { it.copy(searchQuery = query, isSearching = true) }
+
         viewModelScope.launch {
-            val results = repository.searchProducts(query, _uiState.value.favoriteProductIds)
+            val results = repository.searchProducts(q, _uiState.value.favoriteProductIds)
             _uiState.update {
                 it.copy(
                     searchResults = results,
@@ -280,49 +398,26 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun toggleFavoriteProduct(product: FoodProduct) {
+    fun logFoodItem(product: FoodProduct, mealType: MealType, weightGrams: Float) {
         viewModelScope.launch {
-            val targetKey = product.id
-            repository.toggleFavorite(targetKey)
-            val isNowFav = !_uiState.value.favoriteProductIds.contains(targetKey)
-            _uiState.update {
-                it.copy(
-                    snackbarMessage = if (isNowFav) "Добавлено в избранное: ${product.name}" else "Удалено из избранного: ${product.name}"
-                )
-            }
-            triggerAutoSync()
-        }
-    }
-
-    fun logFoodItem(
-        product: FoodProduct,
-        mealType: MealType,
-        weightGrams: Float
-    ) {
-        viewModelScope.launch {
-            val calc = product.calculateForWeight(weightGrams)
-            val entry = LoggedFood(
+            val ratio = weightGrams / 100f
+            val item = LoggedFood(
                 date = _currentDate.value,
                 mealType = mealType,
                 name = product.name,
                 desc = product.desc,
                 weightGrams = weightGrams,
-                calories = calc.calories,
-                protein = calc.protein,
-                fat = calc.fat,
-                carbs = calc.carbs,
-                fiber = calc.fiber,
-                sugar = calc.sugar,
-                sodium = calc.sodium
+                calories = product.caloriesPer100g * ratio,
+                protein = product.proteinPer100g * ratio,
+                fat = product.fatPer100g * ratio,
+                carbs = product.carbsPer100g * ratio,
+                fiber = product.fiberPer100g * ratio,
+                sugar = product.sugarPer100g * ratio,
+                sodium = product.sodiumPer100g * ratio
             )
-            repository.logFood(entry)
-            _uiState.update {
-                it.copy(
-                    showAddFoodSheet = false,
-                    selectedFoodToLog = null,
-                    snackbarMessage = "Добавлено: ${product.name} (${weightGrams.toInt()} г)"
-                )
-            }
+            repository.logFood(item)
+            closeAddFoodSheet()
+            _uiState.update { it.copy(snackbarMessage = "«${product.name}» добавлено в дневник") }
             triggerAutoSync()
         }
     }
@@ -330,36 +425,134 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteLoggedItem(item: LoggedFood) {
         viewModelScope.launch {
             repository.deleteLoggedFood(item.id)
-            _uiState.update { it.copy(snackbarMessage = "Удалено: ${item.name}") }
+            _uiState.update { it.copy(snackbarMessage = "«${item.name}» удалено") }
             triggerAutoSync()
         }
     }
 
     fun addWaterMl(deltaMl: Int) {
         viewModelScope.launch {
-            val currentMl = dailyStats.value.waterConsumedMl
-            val newAmount = (currentMl + deltaMl).coerceAtLeast(0)
-            repository.updateWater(_currentDate.value, newAmount)
+            val current = dailyStats.value.waterConsumedMl
+            repository.updateWater(_currentDate.value, current + deltaMl)
             triggerAutoSync()
         }
     }
 
-    fun saveCustomProduct(product: FoodProduct) {
+    fun updateDailyGoals(goals: DailyGoals) {
+        viewModelScope.launch {
+            repository.updateGoals(goals)
+            _uiState.update { it.copy(snackbarMessage = "Цели успешно сохранены") }
+            triggerAutoSync()
+        }
+    }
+
+    fun createCustomProduct(product: FoodProduct) {
         viewModelScope.launch {
             repository.saveCustomProduct(product)
+            closeCreateProductSheet()
             performSearch(_uiState.value.searchQuery)
+            _uiState.update { it.copy(snackbarMessage = "Продукт «${product.name}» сохранен") }
+            triggerAutoSync()
+        }
+    }
+
+    fun saveCustomProduct(product: FoodProduct) = createCustomProduct(product)
+
+    fun toggleFavoriteProduct(product: FoodProduct) {
+        viewModelScope.launch {
+            repository.toggleFavorite(product.id)
+            performSearch(_uiState.value.searchQuery)
+        }
+    }
+
+    fun setPalette(palette: AppThemePalette) = setThemePalette(palette)
+
+    // Тренировки (переработанные по GymMane)
+    fun startEmptyWorkout() {
+        val emptySession = WorkoutSession(
+            date = _currentDate.value,
+            title = "Свободная тренировка",
+            exercises = emptyList()
+        )
+        _uiState.update { it.copy(activeWorkoutSession = emptySession) }
+    }
+
+    fun startRoutine(routine: WorkoutRoutine) {
+        val routineSession = WorkoutSession(
+            date = _currentDate.value,
+            title = routine.name,
+            routineId = routine.id,
+            exercises = routine.exercises.map { ex ->
+                LoggedExercise(
+                    exerciseId = ex.id,
+                    exerciseName = ex.name,
+                    muscleGroup = ex.primaryMuscle,
+                    sets = listOf(
+                        LoggedSet(setNumber = 1, kind = SetKind.NORMAL, weightKg = 30f, reps = 10, isCompleted = false),
+                        LoggedSet(setNumber = 2, kind = SetKind.NORMAL, weightKg = 30f, reps = 10, isCompleted = false),
+                        LoggedSet(setNumber = 3, kind = SetKind.NORMAL, weightKg = 30f, reps = 10, isCompleted = false)
+                    )
+                )
+            }
+        )
+        _uiState.update { it.copy(activeWorkoutSession = routineSession) }
+    }
+
+    fun resumeActiveWorkout() {
+        // activeWorkoutSession remains in state, dialog is re-opened in UI
+    }
+
+    fun cancelActiveWorkout() {
+        _uiState.update { it.copy(activeWorkoutSession = null) }
+    }
+
+    fun finishWorkoutSession(session: WorkoutSession) {
+        viewModelScope.launch {
+            workoutRepository.saveWorkoutSession(session)
             _uiState.update {
                 it.copy(
-                    showCreateProductSheet = false,
-                    snackbarMessage = "Продукт «${product.name}» сохранен в вашей базе"
+                    activeWorkoutSession = null,
+                    snackbarMessage = "Тренировка «${session.title}» сохранена! Сожжено %,d ккал".format(session.caloriesBurned.toInt())
                 )
             }
             triggerAutoSync()
         }
     }
 
-    // Тренировки и физическая активность
-    fun saveWorkout(
+    fun deleteWorkoutSession(id: Long) {
+        viewModelScope.launch {
+            workoutRepository.deleteWorkoutSession(id)
+            _uiState.update { it.copy(snackbarMessage = "Запись тренировки удалена") }
+        }
+    }
+
+    fun createCustomRoutine(name: String, targetMuscles: String, exercises: List<Exercise>) {
+        viewModelScope.launch {
+            val newRoutine = WorkoutRoutine(
+                id = "routine_" + UUID.randomUUID().toString().take(8),
+                name = name,
+                targetMuscles = targetMuscles,
+                defaultRestSeconds = 90,
+                exercises = exercises
+            )
+            workoutRepository.saveCustomRoutine(newRoutine)
+            _uiState.update { it.copy(snackbarMessage = "Программа «$name» создана") }
+        }
+    }
+
+    fun createCustomExercise(
+        name: String,
+        muscle: MuscleGroup,
+        equipment: Equipment,
+        description: String = ""
+    ) {
+        viewModelScope.launch {
+            workoutRepository.addCustomExercise(name, muscle, equipment, description)
+            _uiState.update { it.copy(snackbarMessage = "Упражнение «$name» добавлено в каталог!") }
+        }
+    }
+
+    fun addManualWorkout(
         title: String,
         category: WorkoutCategory,
         durationMinutes: Int,
@@ -378,102 +571,97 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
                 notes = notes
             )
             repository.addWorkout(workout)
-            _uiState.update {
-                it.copy(
-                    showAddWorkoutSheet = false,
-                    snackbarMessage = "Тренировка «$title» добавлена (-${caloriesBurned.toInt()} ккал)"
-                )
-            }
+            closeAddWorkoutSheet()
+            _uiState.update { it.copy(snackbarMessage = "Тренировка «$title» сохранена") }
             triggerAutoSync()
         }
     }
 
-    fun deleteWorkout(id: Long) {
+    fun saveWorkout(
+        title: String,
+        category: WorkoutCategory,
+        durationMinutes: Int,
+        burnedCalories: Float,
+        distanceKm: Float? = null,
+        notes: String? = null
+    ) = addManualWorkout(title, category, durationMinutes, burnedCalories, distanceKm ?: 0f, notes ?: "")
+
+    fun deleteWorkout(workoutId: Long) {
         viewModelScope.launch {
-            repository.deleteWorkout(id)
+            repository.deleteWorkout(workoutId)
             _uiState.update { it.copy(snackbarMessage = "Тренировка удалена") }
             triggerAutoSync()
         }
     }
 
-    // GPX Трекинг
+    // GPX треки
     fun addTrack(track: GpxTrack) {
         viewModelScope.launch {
             trackRepository.addTrack(track)
-            _uiState.update { it.copy(snackbarMessage = "Маршрут «${track.title}» сохранен в вашей коллекции") }
+            _uiState.update { it.copy(snackbarMessage = "Маршрут «${track.title}» сохранен") }
         }
     }
 
     fun deleteTrack(trackId: String) {
         viewModelScope.launch {
             trackRepository.deleteTrack(trackId)
-            _uiState.update { it.copy(snackbarMessage = "Маршрут удален из коллекции") }
+            _uiState.update { it.copy(snackbarMessage = "Маршрут удален") }
         }
     }
 
-    // Шагомер и интеграция с Health Connect
+    // Шагомер
     fun updateSteps(steps: Int) {
         viewModelScope.launch {
-            val burnedKcal = healthConnectManager.calculateBurnedCalories(steps)
+            stepSensorManager.setManualSteps(steps)
+            val burnedKcal = StepSensorManager.calculateBurnedCalories(steps)
             repository.updateDailySteps(
                 date = _currentDate.value,
                 steps = steps,
                 burnedKcal = burnedKcal,
-                isHealthConnect = _uiState.value.isHealthConnectConnected
+                isHealthConnect = false
             )
             triggerAutoSync()
         }
     }
 
-    fun connectHealthConnect() {
-        accountRepository.setHealthConnectConnected(true)
-        _uiState.update { it.copy(isHealthConnectConnected = true) }
+    fun updateStepGoal(newGoal: Int) {
         viewModelScope.launch {
-            val initialSteps = if (stepSensorManager.isSensorAvailable) {
-                stepSensorManager.sensorSteps.value.coerceAtLeast(1500)
-            } else {
-                1500
-            }
-            val burned = healthConnectManager.calculateBurnedCalories(initialSteps)
-            repository.updateDailySteps(_currentDate.value, initialSteps, burned, true)
-            _uiState.update {
-                it.copy(snackbarMessage = "Health Connect синхронизирован: %,d шагов".format(initialSteps))
-            }
+            repository.updateStepGoal(newGoal)
+            _uiState.update { it.copy(snackbarMessage = "Цель шагов установлена: %,d".format(newGoal)) }
             triggerAutoSync()
         }
     }
 
-    fun toggleHealthConnect(enabled: Boolean) {
-        accountRepository.setHealthConnectConnected(enabled)
-        _uiState.update { it.copy(isHealthConnectConnected = enabled) }
-        if (enabled) {
-            connectHealthConnect()
-        } else {
-            _uiState.update {
-                it.copy(snackbarMessage = "Health Connect отключен. Шагомер заблокирован.")
-            }
-        }
+    fun addManualSteps(delta: Int) {
+        val current = dailyStats.value.stepsCount
+        updateSteps(current + delta)
     }
 
-    // Аккаунт и облачная синхронизация
+    // Аккаунт и серверная синхронизация Tether backend
+    fun getAuthBaseUrl(): String = accountRepository.getAuthBaseUrl()
+    fun getDiaryBaseUrl(): String = accountRepository.getDiaryBaseUrl()
+
+    fun setServerUrls(authUrl: String, diaryUrl: String) {
+        accountRepository.setServerUrls(authUrl, diaryUrl)
+        _uiState.update { it.copy(snackbarMessage = "Адреса серверов обновлены") }
+    }
+
     fun login(email: String, pass: String) {
         viewModelScope.launch {
             val result = accountRepository.login(email, pass)
             result.onSuccess { user ->
-                _uiState.update { it.copy(snackbarMessage = "Вы успешно вошли в аккаунт ${user.email}") }
-                syncNow()
+                _uiState.update { it.copy(snackbarMessage = "Вход выполнен: ${user.displayName}") }
             }.onFailure { err ->
                 _uiState.update { it.copy(snackbarMessage = err.message ?: "Ошибка авторизации") }
             }
         }
     }
 
-    fun register(email: String, pass: String, name: String) {
+    fun register(login: String, pass: String, email: String) {
         viewModelScope.launch {
-            val result = accountRepository.register(email, pass, name)
+            val result = accountRepository.register(login, pass, email)
             result.onSuccess { user ->
-                _uiState.update { it.copy(snackbarMessage = "Аккаунт ${user.email} успешно создан!") }
-                syncNow()
+                _uiState.update { it.copy(snackbarMessage = "Аккаунт «${user.displayName}» успешно создан") }
             }.onFailure { err ->
                 _uiState.update { it.copy(snackbarMessage = err.message ?: "Ошибка регистрации") }
             }
@@ -481,8 +669,10 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun logout() {
-        accountRepository.logout()
-        _uiState.update { it.copy(snackbarMessage = "Вы вышли из аккаунта. Включен автономный режим.") }
+        viewModelScope.launch {
+            accountRepository.logout()
+            _uiState.update { it.copy(snackbarMessage = "Вы вышли из системы") }
+        }
     }
 
     fun toggleAutoSync(enabled: Boolean) {
@@ -498,24 +688,48 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             val (foods, products, water) = repository.getTotalCounts()
             val result = accountRepository.syncNow(foods, products, water)
-            result.onSuccess { user ->
+            result.onSuccess {
                 refreshBackupInfo()
                 _uiState.update {
-                    it.copy(snackbarMessage = "Дневник синхронизирован с аккаунтом ${user.email}")
+                    it.copy(snackbarMessage = "Синхронизация с сервером успешно завершена")
                 }
             }.onFailure { err ->
-                _uiState.update { it.copy(snackbarMessage = err.message ?: "Ошибка синхронизации") }
+                _uiState.update { it.copy(snackbarMessage = err.message ?: "Ошибка синхронизации с сервером") }
+            }
+        }
+    }
+
+    fun updateHealthProfile(
+        gender: String,
+        age: Int,
+        weight: Float,
+        heightMeters: Float,
+        activityLevel: Int,
+        targetGoal: Int,
+        targetSteps: Int,
+        targetWaterMl: Int
+    ) {
+        viewModelScope.launch {
+            val result = accountRepository.updateHealthProfile(
+                gender = gender,
+                age = age,
+                weight = weight,
+                heightMeters = heightMeters,
+                activityLevel = activityLevel,
+                targetGoal = targetGoal,
+                targetSteps = targetSteps,
+                targetWaterMl = targetWaterMl
+            )
+            result.onSuccess {
+                _uiState.update { it.copy(snackbarMessage = "Параметры и суточные нормы обновлены") }
+            }.onFailure { err ->
+                _uiState.update { it.copy(snackbarMessage = err.message ?: "Ошибка сохранения параметров") }
             }
         }
     }
 
     fun restoreBackup() {
-        viewModelScope.launch {
-            syncNow()
-            _uiState.update {
-                it.copy(snackbarMessage = "Данные успешно восстановлены из облака аккаунта")
-            }
-        }
+        syncNow()
     }
 
     private fun triggerAutoSync() {
@@ -524,5 +738,9 @@ class NutritionViewModel(application: Application) : AndroidViewModel(applicatio
             accountRepository.triggerAutoSyncIfEnabled(foods, products, water)
             refreshBackupInfo()
         }
+    }
+
+    fun dismissSnackbar() {
+        _uiState.update { it.copy(snackbarMessage = null) }
     }
 }

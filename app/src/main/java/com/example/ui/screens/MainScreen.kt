@@ -22,10 +22,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EventNote
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalGroceryStore
-import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,15 +49,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import android.app.DatePickerDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -66,14 +75,23 @@ import com.example.data.model.LoggedFood
 import com.example.data.model.MealType
 import com.example.data.model.SyncStatus
 import com.example.data.model.Workout
+import com.example.ui.components.ActiveWorkoutSessionDialog
 import com.example.ui.components.AddFoodBottomSheet
 import com.example.ui.components.AddWorkoutBottomSheet
 import com.example.ui.components.CalorieSummaryCard
 import com.example.ui.components.CreateProductDialog
 import com.example.ui.components.MealSectionCard
 import com.example.ui.components.StepTrackerCard
+import com.example.ui.components.UnifiedFoodSectionCard
 import com.example.ui.components.WaterTrackerCard
 import com.example.ui.components.WorkoutTrackerCard
+import com.example.ui.screens.WorkoutScreen
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.filled.QueryStats
+import com.example.R
+import com.example.ui.screens.StatsAndAdviceScreen
 import com.example.ui.theme.PrimaryGreen
 import com.example.ui.viewmodel.NutritionViewModel
 
@@ -89,6 +107,13 @@ fun MainScreen(
     val backupInfo by viewModel.backupInfo.collectAsStateWithLifecycle()
     val communityTracks by viewModel.communityTracks.collectAsStateWithLifecycle()
     val myTracks by viewModel.myTracks.collectAsStateWithLifecycle()
+    val routines by viewModel.routines.collectAsStateWithLifecycle()
+    val catalogExercises by viewModel.catalogExercises.collectAsStateWithLifecycle()
+    val workoutHistory by viewModel.workoutHistory.collectAsStateWithLifecycle()
+    val personalRecords by viewModel.personalRecords.collectAsStateWithLifecycle()
+    val weeklyAnalytics by viewModel.weeklyAnalytics.collectAsStateWithLifecycle()
+    val smartInsights by viewModel.smartInsights.collectAsStateWithLifecycle()
+    val healthProfile by viewModel.healthProfile.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -99,63 +124,70 @@ fun MainScreen(
         }
     }
 
+    val context = LocalContext.current
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    if (showDatePicker) {
+        val cal = Calendar.getInstance()
+        try {
+            val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(uiState.selectedDate)
+            if (parsed != null) cal.time = parsed
+        } catch (_: Exception) {}
+
+        val dpd = DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val sel = Calendar.getInstance()
+                sel.set(year, month, dayOfMonth)
+                val formatted = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(sel.time)
+                viewModel.setDate(formatted)
+                showDatePicker = false
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).apply {
+            datePicker.maxDate = System.currentTimeMillis()
+            setOnDismissListener { showDatePicker = false }
+        }
+        DisposableEffect(Unit) {
+            dpd.show()
+            onDispose {
+                dpd.dismiss()
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "tether",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-0.5).sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.tether_logo_full),
+                            contentDescription = "tether",
+                            modifier = Modifier.height(28.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.openAccount() }) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Аккаунт",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = { viewModel.openSettings() }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Настройки",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    Spacer(modifier = Modifier.width(2.dp))
-                    // Плашка статуса синхронизации в верхней панели
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = when (account.syncStatus) {
-                            SyncStatus.SYNCED -> PrimaryGreen.copy(alpha = 0.12f)
-                            SyncStatus.SYNCING -> Color(0xFF2196F3).copy(alpha = 0.12f)
-                            else -> MaterialTheme.colorScheme.surfaceVariant
-                        },
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .clickable { viewModel.setActiveTab(3) }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .background(
-                                        when (account.syncStatus) {
-                                            SyncStatus.SYNCED -> PrimaryGreen
-                                            SyncStatus.SYNCING -> Color(0xFF1976D2)
-                                            else -> MaterialTheme.colorScheme.outline
-                                        },
-                                        CircleShape
-                                    )
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (account.isLoggedIn) "синхронизировано" else "офлайн",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -193,8 +225,8 @@ fun MainScreen(
                 NavigationBarItem(
                     selected = uiState.activeTab == 2,
                     onClick = { viewModel.setActiveTab(2) },
-                    icon = { Icon(Icons.Default.Map, contentDescription = "Трекинг") },
-                    label = { Text("Трекинг") },
+                    icon = { Icon(Icons.Default.FitnessCenter, contentDescription = "Тренировки") },
+                    label = { Text("Тренировки") },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = PrimaryGreen,
                         selectedTextColor = PrimaryGreen,
@@ -204,8 +236,19 @@ fun MainScreen(
                 NavigationBarItem(
                     selected = uiState.activeTab == 3,
                     onClick = { viewModel.setActiveTab(3) },
-                    icon = { Icon(Icons.Default.AccountCircle, contentDescription = "Аккаунт") },
-                    label = { Text("Аккаунт") },
+                    icon = { Icon(Icons.Default.Explore, contentDescription = "Трекинг") },
+                    label = { Text("Трекинг") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryGreen,
+                        selectedTextColor = PrimaryGreen,
+                        indicatorColor = PrimaryGreen.copy(alpha = 0.15f)
+                    )
+                )
+                NavigationBarItem(
+                    selected = uiState.activeTab == 4,
+                    onClick = { viewModel.setActiveTab(4) },
+                    icon = { Icon(Icons.Default.QueryStats, contentDescription = "Советы") },
+                    label = { Text("Советы") },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = PrimaryGreen,
                         selectedTextColor = PrimaryGreen,
@@ -236,19 +279,15 @@ fun MainScreen(
             when (uiState.activeTab) {
                 0 -> DiaryTabContent(
                     stats = dailyStats,
-                    workouts = workouts,
                     dateTitle = uiState.formattedDateTitle,
-                    isHealthConnectAvailable = uiState.isHealthConnectAvailable,
-                    isHealthConnectConnected = uiState.isHealthConnectConnected,
+                    canGoForward = viewModel.canGoForward(),
                     onPrevDay = { viewModel.changeDate(-1) },
                     onNextDay = { viewModel.changeDate(1) },
+                    onOpenDatePicker = { showDatePicker = true },
                     onAddFood = { meal -> viewModel.openAddFoodSheet(meal) },
                     onDeleteFood = { item -> viewModel.deleteLoggedItem(item) },
                     onAddWater = { delta -> viewModel.addWaterMl(delta) },
-                    onAddWorkoutClick = { viewModel.openAddWorkoutSheet() },
-                    onDeleteWorkout = { id -> viewModel.deleteWorkout(id) },
-                    onUpdateSteps = { steps -> viewModel.updateSteps(steps) },
-                    onConnectHealthConnect = { viewModel.setActiveTab(3) }
+                    onUpdateStepGoal = { newGoal -> viewModel.updateStepGoal(newGoal) }
                 )
 
                 1 -> ProductsDatabaseTabContent(
@@ -262,25 +301,37 @@ fun MainScreen(
                     onOpenCreateProduct = { viewModel.openCreateProductSheet() }
                 )
 
-                2 -> TrackingScreen(
-                    communityTracks = communityTracks,
-                    myTracks = myTracks,
-                    onAddTrack = { track -> viewModel.addTrack(track) },
-                    onDeleteTrack = { id -> viewModel.deleteTrack(id) }
+                2 -> WorkoutScreen(
+                    routines = routines,
+                    catalogExercises = catalogExercises,
+                    sessionsHistory = workoutHistory,
+                    personalRecords = personalRecords,
+                    activeSession = uiState.activeWorkoutSession,
+                    onStartEmptyWorkout = { viewModel.startEmptyWorkout() },
+                    onStartRoutine = { routine -> viewModel.startRoutine(routine) },
+                    onResumeActiveWorkout = { viewModel.resumeActiveWorkout() },
+                    onDeleteSession = { id -> viewModel.deleteWorkoutSession(id) },
+                    onCreateRoutine = { name, muscles, exList ->
+                        viewModel.createCustomRoutine(name, muscles, exList)
+                    },
+                    onCreateExercise = { name, muscle, eq, desc ->
+                        viewModel.createCustomExercise(name, muscle, eq, desc)
+                    }
                 )
 
-                3 -> AccountScreen(
-                    account = account,
-                    backupInfo = backupInfo,
-                    isHealthConnectConnected = uiState.isHealthConnectConnected,
-                    isHealthConnectAvailable = uiState.isHealthConnectAvailable,
-                    onToggleHealthConnect = { viewModel.toggleHealthConnect(it) },
-                    onLogin = { email, pass -> viewModel.login(email, pass) },
-                    onRegister = { email, pass, name -> viewModel.register(email, pass, name) },
-                    onLogout = { viewModel.logout() },
-                    onSyncNow = { viewModel.syncNow() },
-                    onToggleAutoSync = { viewModel.toggleAutoSync(it) },
-                    onRestoreBackup = { viewModel.restoreBackup() }
+                3 -> TrackingScreen(
+                    communityTracks = communityTracks,
+                    myTracks = myTracks,
+                    onAddTrack = { viewModel.addTrack(it) },
+                    onDeleteTrack = { viewModel.deleteTrack(it) },
+                    onPublishToCommunity = { viewModel.publishTrackToCommunity(it) }
+                )
+
+                4 -> StatsAndAdviceScreen(
+                    dailyStats = dailyStats,
+                    weeklyAnalytics = weeklyAnalytics,
+                    smartInsights = smartInsights,
+                    healthProfile = healthProfile
                 )
             }
         }
@@ -326,13 +377,54 @@ fun MainScreen(
         val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
         SettingsScreen(
             themeConfig = themeConfig,
-            isHealthConnectConnected = uiState.isHealthConnectConnected,
-            isHealthConnectAvailable = uiState.isHealthConnectAvailable,
+            authBaseUrl = viewModel.getAuthBaseUrl(),
+            diaryBaseUrl = viewModel.getDiaryBaseUrl(),
             onToggleMonet = { viewModel.setUseMonet(it) },
             onSelectPalette = { viewModel.setPalette(it) },
             onSelectDarkThemeMode = { viewModel.setDarkThemeMode(it) },
-            onToggleHealthConnect = { viewModel.toggleHealthConnect(it) },
+            onSaveServerUrls = { authUrl, diaryUrl -> viewModel.setServerUrls(authUrl, diaryUrl) },
             onBack = { viewModel.closeSettings() }
+        )
+    }
+
+    if (uiState.showAccount) {
+        val healthProfile by viewModel.healthProfile.collectAsStateWithLifecycle()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            AccountScreen(
+                account = account,
+                healthProfile = healthProfile,
+                onUpdateHealthProfile = { gender, age, weight, heightMeters, actLvl, goal, steps, waterMl ->
+                    viewModel.updateHealthProfile(gender, age, weight, heightMeters, actLvl, goal, steps, waterMl)
+                },
+                authBaseUrl = viewModel.getAuthBaseUrl(),
+                diaryBaseUrl = viewModel.getDiaryBaseUrl(),
+                onLogin = { email, pass -> viewModel.login(email, pass) },
+                onRegister = { login, pass, email -> viewModel.register(login, pass, email) },
+                onLogout = { viewModel.logout() },
+                onSyncNow = { viewModel.syncNow() },
+                onToggleAutoSync = { viewModel.toggleAutoSync(it) },
+                onSaveServerUrls = { authUrl, diaryUrl -> viewModel.setServerUrls(authUrl, diaryUrl) },
+                onBack = { viewModel.closeAccount() }
+            )
+        }
+    }
+
+    uiState.activeWorkoutSession?.let { activeSession ->
+        ActiveWorkoutSessionDialog(
+            initialSession = activeSession,
+            catalogExercises = catalogExercises,
+            onCreateExercise = { name, muscle, eq, desc ->
+                viewModel.createCustomExercise(name, muscle, eq, desc)
+            },
+            onFinishSession = { finishedSession ->
+                viewModel.finishWorkoutSession(finishedSession)
+            },
+            onCancelSession = {
+                viewModel.cancelActiveWorkout()
+            }
         )
     }
 }
@@ -340,19 +432,15 @@ fun MainScreen(
 @Composable
 private fun DiaryTabContent(
     stats: DailyNutrientStats,
-    workouts: List<Workout>,
     dateTitle: String,
-    isHealthConnectAvailable: Boolean,
-    isHealthConnectConnected: Boolean,
+    canGoForward: Boolean,
     onPrevDay: () -> Unit,
     onNextDay: () -> Unit,
+    onOpenDatePicker: () -> Unit,
     onAddFood: (MealType) -> Unit,
     onDeleteFood: (LoggedFood) -> Unit,
     onAddWater: (Int) -> Unit,
-    onAddWorkoutClick: () -> Unit,
-    onDeleteWorkout: (Long) -> Unit,
-    onUpdateSteps: (Int) -> Unit,
-    onConnectHealthConnect: () -> Unit
+    onUpdateStepGoal: (Int) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -363,56 +451,36 @@ private fun DiaryTabContent(
             CalorieSummaryCard(
                 stats = stats,
                 dateTitle = dateTitle,
+                canGoForward = canGoForward,
                 onPreviousDay = onPrevDay,
-                onNextDay = onNextDay
+                onNextDay = onNextDay,
+                onOpenDatePicker = onOpenDatePicker
             )
         }
 
-        // Карточка шагомера Health Connect
+        // Карточка шагомера с редактированием цели шагов
         item {
             StepTrackerCard(
                 steps = stats.stepsCount,
                 burnedCalories = stats.stepsBurnedCalories,
-                goalSteps = 10000,
-                isHealthConnectAvailable = isHealthConnectAvailable,
-                isHealthConnectConnected = isHealthConnectConnected,
-                onManualStepsUpdate = onUpdateSteps,
-                onConnectHealthConnect = onConnectHealthConnect
-            )
-        }
-
-        // Карточка тренировок
-        item {
-            WorkoutTrackerCard(
-                workouts = workouts,
-                onAddWorkoutClick = onAddWorkoutClick,
-                onDeleteWorkout = onDeleteWorkout
+                goalSteps = stats.goals.stepGoal,
+                onGoalStepsUpdate = onUpdateStepGoal
             )
         }
 
         item {
             WaterTrackerCard(
                 consumedMl = stats.waterConsumedMl,
-                goalMl = 2000,
+                goalMl = stats.goals.waterGoalMl,
                 onAddWater = onAddWater
             )
         }
 
+        // Единый список всех продуктов за день (без деления на приемы пищи)
         item {
-            Text(
-                text = "Приёмы пищи",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-            )
-        }
-
-        items(MealType.values()) { mealType ->
-            val itemsForMeal = stats.mealBreakdown[mealType] ?: emptyList()
-            MealSectionCard(
-                mealType = mealType,
-                items = itemsForMeal,
-                onAddClick = { onAddFood(mealType) },
+            UnifiedFoodSectionCard(
+                items = stats.allLoggedFoods,
+                onAddClick = { onAddFood(MealType.LUNCH) },
                 onDeleteItem = onDeleteFood
             )
         }
@@ -474,7 +542,7 @@ private fun ProductsDatabaseTabContent(
 
         item {
             Text(
-                text = if (searchQuery.isBlank()) "Каталог продуктов (избранные вверху)" else "Найдено (${searchResults.size})",
+                text = if (searchQuery.isBlank()) "Каталог продуктов" else "Найдено (${searchResults.size})",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
@@ -498,23 +566,11 @@ private fun ProductsDatabaseTabContent(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = product.name,
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            if (product.isFavorite) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.Default.Favorite,
-                                    contentDescription = "В избранном",
-                                    tint = Color(0xFFE91E63),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
+                        Text(
+                            text = product.name,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         if (product.desc.isNotBlank()) {
                             Text(
                                 text = product.desc,

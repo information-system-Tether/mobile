@@ -392,7 +392,6 @@ private fun SearchAndCatalogView(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -400,15 +399,6 @@ private fun SearchAndCatalogView(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedButton(
-                onClick = onOpenCreateProduct,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryGreen)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Свой продукт", fontSize = 12.sp)
-            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -462,23 +452,11 @@ private fun ProductCatalogItemRow(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = product.name,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (product.isFavorite) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Favorite,
-                            contentDescription = "В избранном",
-                            tint = Color(0xFFE91E63),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 if (product.desc.isNotBlank()) {
                     Text(
                         text = product.desc,

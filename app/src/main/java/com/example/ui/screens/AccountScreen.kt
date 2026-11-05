@@ -7,9 +7,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,33 +23,43 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.example.R
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +67,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -61,6 +76,9 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -80,118 +98,151 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.model.CloudBackupInfo
+import com.example.data.api.tether.HealthProfileResponse
 import com.example.data.model.SyncStatus
 import com.example.data.model.UserAccount
+import com.example.ui.theme.NutrientCarbs
+import com.example.ui.theme.NutrientFat
+import com.example.ui.theme.NutrientProtein
+import com.example.ui.theme.NutrientWater
 import com.example.ui.theme.PrimaryGreen
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountScreen(
     account: UserAccount,
-    backupInfo: CloudBackupInfo,
-    isHealthConnectConnected: Boolean,
-    isHealthConnectAvailable: Boolean = true,
-    onToggleHealthConnect: (Boolean) -> Unit,
+    healthProfile: HealthProfileResponse = HealthProfileResponse(),
+    onUpdateHealthProfile: (
+        gender: String,
+        age: Int,
+        weight: Float,
+        heightMeters: Float,
+        activityLevel: Int,
+        targetGoal: Int,
+        targetSteps: Int,
+        targetWaterMl: Int
+    ) -> Unit = { _, _, _, _, _, _, _, _ -> },
+    authBaseUrl: String = "http://10.0.2.2:8001/",
+    diaryBaseUrl: String = "http://10.0.2.2:8002/",
     onLogin: (String, String) -> Unit,
     onRegister: (String, String, String) -> Unit,
     onLogout: () -> Unit,
     onSyncNow: () -> Unit,
     onToggleAutoSync: (Boolean) -> Unit,
-    onRestoreBackup: () -> Unit,
+    onSaveServerUrls: (String, String) -> Unit = { _, _ -> },
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("account_screen"),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)
-    ) {
-        item {
-            // Header
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(PrimaryGreen.copy(alpha = 0.15f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudSync,
-                        contentDescription = null,
-                        tint = PrimaryGreen,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "Аккаунт и Синхронизация",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Сохранение дневника калорий в облачном профиле",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        // Health Connect Integration Card (Always accessible in Account screen)
-        item {
-            HealthConnectCard(
-                isConnected = isHealthConnectConnected,
-                isAvailable = isHealthConnectAvailable,
-                onToggle = onToggleHealthConnect
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(PrimaryGreen.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = PrimaryGreen,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Аккаунт",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Назад",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .testTag("account_screen"),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            if (account.isLoggedIn) {
+                // 1. Logged-in Profile Card (without redundant badges)
+                item {
+                    UserProfileCard(
+                        account = account,
+                        onLogout = onLogout
+                    )
+                }
 
-        if (account.isLoggedIn) {
-            // 1. Logged-in Profile Card
-            item {
-                UserProfileCard(
-                    account = account,
-                    onLogout = onLogout
-                )
+                // 2. Anthropometrics & Health Goals Card
+                item {
+                    AnthropometricsCard(
+                        healthProfile = healthProfile,
+                        onUpdateHealthProfile = onUpdateHealthProfile
+                    )
+                }
+
+                // 3. Cloud Sync Status Card (clean, without fake stats)
+                item {
+                    CloudSyncCard(
+                        account = account,
+                        onSyncNow = onSyncNow,
+                        onToggleAutoSync = onToggleAutoSync
+                    )
+                }
+            } else {
+                // Not Logged In -> Auth Form (Login / Register)
+                item {
+                    AuthCard(
+                        onLogin = onLogin,
+                        onRegister = onRegister
+                    )
+                }
             }
 
-            // 2. Cloud Sync Status Card
             item {
-                CloudSyncCard(
-                    account = account,
-                    onSyncNow = onSyncNow,
-                    onToggleAutoSync = onToggleAutoSync
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.tether_logo_full),
+                        contentDescription = "tether",
+                        modifier = Modifier.height(26.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Версия 1.0 • Tether Health & Fitness",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
             }
-
-            // 3. Cloud Backup Card
-            item {
-                CloudBackupCard(
-                    backupInfo = backupInfo,
-                    onSyncNow = onSyncNow,
-                    onRestoreBackup = onRestoreBackup
-                )
-            }
-        } else {
-            // Not Logged In -> Auth Form (Login / Register)
-            item {
-                AuthCard(
-                    onLogin = onLogin,
-                    onRegister = onRegister
-                )
-            }
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -216,14 +267,14 @@ private fun UserProfileCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Gradient Avatar
+                // Initials Circle
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(60.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.linearGradient(
-                                listOf(PrimaryGreen, Color(0xFF00897B))
+                            brush = Brush.linearGradient(
+                                colors = listOf(PrimaryGreen, PrimaryGreen.copy(alpha = 0.7f))
                             )
                         ),
                     contentAlignment = Alignment.Center
@@ -231,7 +282,7 @@ private fun UserProfileCard(
                     Text(
                         text = account.initials,
                         style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     )
@@ -250,31 +301,6 @@ private fun UserProfileCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = PrimaryGreen.copy(alpha = 0.12f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = PrimaryGreen,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Облако активно",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = PrimaryGreen
-                                )
-                            )
-                        }
-                    }
                 }
 
                 IconButton(
@@ -293,27 +319,20 @@ private fun UserProfileCard(
 }
 
 @Composable
-private fun CloudSyncCard(
-    account: UserAccount,
-    onSyncNow: () -> Unit,
-    onToggleAutoSync: (Boolean) -> Unit
+private fun AnthropometricsCard(
+    healthProfile: HealthProfileResponse,
+    onUpdateHealthProfile: (
+        gender: String,
+        age: Int,
+        weight: Float,
+        heightMeters: Float,
+        activityLevel: Int,
+        targetGoal: Int,
+        targetSteps: Int,
+        targetWaterMl: Int
+    ) -> Unit
 ) {
-    val isSyncing = account.syncStatus == SyncStatus.SYNCING
-
-    val infiniteTransition = rememberInfiniteTransition(label = "syncSpin")
-    val spinAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1000, easing = LinearEasing)
-        ),
-        label = "spin"
-    )
-
-    val timeFormat = remember { SimpleDateFormat("HH:mm, d MMMM", Locale("ru")) }
-    val lastSyncFormatted = remember(account.lastSyncTimestamp) {
-        timeFormat.format(Date(account.lastSyncTimestamp))
-    }
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -328,108 +347,730 @@ private fun CloudSyncCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                when (account.syncStatus) {
-                                    SyncStatus.SYNCED -> PrimaryGreen.copy(alpha = 0.15f)
-                                    SyncStatus.SYNCING -> Color(0xFF2196F3).copy(alpha = 0.15f)
-                                    else -> MaterialTheme.colorScheme.surfaceVariant
-                                },
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
+                    Icon(
+                        imageVector = Icons.Default.FitnessCenter,
+                        contentDescription = null,
+                        tint = PrimaryGreen,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Антропометрия и цели",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                IconButton(
+                    onClick = { showEditDialog = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Редактировать параметры",
+                        tint = PrimaryGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Body parameters grid
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ParamChip(
+                    title = "Вес",
+                    value = "%.1f кг".format(healthProfile.weight),
+                    modifier = Modifier.weight(1f)
+                )
+                ParamChip(
+                    title = "Рост",
+                    value = "${(healthProfile.height * 100).toInt()} см",
+                    modifier = Modifier.weight(1f)
+                )
+                ParamChip(
+                    title = "Возраст",
+                    value = "${healthProfile.age} лет",
+                    modifier = Modifier.weight(1f)
+                )
+                ParamChip(
+                    title = "Пол",
+                    value = if (healthProfile.gender == "m") "Муж." else "Жен.",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Activity level and Goal summary
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Icon(
-                            imageVector = when (account.syncStatus) {
-                                SyncStatus.SYNCED -> Icons.Default.CloudDone
-                                SyncStatus.SYNCING -> Icons.Default.Sync
-                                SyncStatus.OFFLINE -> Icons.Default.CloudOff
-                                else -> Icons.Default.CloudUpload
-                            },
-                            contentDescription = null,
-                            tint = when (account.syncStatus) {
-                                SyncStatus.SYNCED -> PrimaryGreen
-                                SyncStatus.SYNCING -> Color(0xFF1976D2)
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            modifier = Modifier
-                                .size(22.dp)
-                                .then(if (isSyncing) Modifier.rotate(spinAngle) else Modifier)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column {
                         Text(
-                            text = when (account.syncStatus) {
-                                SyncStatus.SYNCED -> "Синхронизировано"
-                                SyncStatus.SYNCING -> "Идёт синхронизация..."
-                                SyncStatus.OFFLINE -> "Автономный режим"
-                                else -> "Требуется синхронизация"
-                            },
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Последняя: $lastSyncFormatted",
+                            text = "Активность:",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = getActivityLevelName(healthProfile.activityLevel),
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Цель:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = getGoalName(healthProfile.targetGoal),
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                            color = PrimaryGreen
                         )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Sync Information stats
+            // Calculated Norms from mathematical backend model
+            Text(
+                text = "Суточные нормы (КБЖУ и цели)",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Calories range
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(14.dp),
+                color = PrimaryGreen.copy(alpha = 0.08f),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${account.syncedRecordsCount}",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                            color = PrimaryGreen
-                        )
-                        Text(
-                            text = "записей в облаке",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .height(36.dp)
-                            .width(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    Text(
+                        text = "Норма калорий:",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "100%",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                            color = PrimaryGreen
+                    Text(
+                        text = "${healthProfile.minTargetCalories.toInt()} — ${healthProfile.maxTargetCalories.toInt()} ккал",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = PrimaryGreen
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Macros row (Proteins, Fats, Carbs)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MacroCard(
+                    title = "Белки",
+                    grams = healthProfile.targetProteins.toInt(),
+                    color = NutrientProtein,
+                    modifier = Modifier.weight(1f)
+                )
+                MacroCard(
+                    title = "Жиры",
+                    grams = healthProfile.targetFats.toInt(),
+                    color = NutrientFat,
+                    modifier = Modifier.weight(1f)
+                )
+                MacroCard(
+                    title = "Углеводы",
+                    grams = healthProfile.targetCarbs.toInt(),
+                    color = NutrientCarbs,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Water and Steps Goals row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = NutrientWater.copy(alpha = 0.08f),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocalDrink,
+                            contentDescription = null,
+                            tint = NutrientWater,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Text(
-                            text = "целостность данных",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(
+                                text = "Вода",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${(healthProfile.targetWater * 1000).toInt()} мл",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = NutrientWater
+                            )
+                        }
                     }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFFF9800).copy(alpha = 0.08f),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DirectionsWalk,
+                            contentDescription = null,
+                            tint = Color(0xFFFF9800),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(
+                                text = "Шаги",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${healthProfile.targetSteps}",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFFE65100)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Action Button
+            OutlinedButton(
+                onClick = { showEditDialog = true },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = PrimaryGreen
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Редактировать параметры и цели",
+                    color = PrimaryGreen,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+        }
+    }
+
+    if (showEditDialog) {
+        EditAnthropometricsDialog(
+            current = healthProfile,
+            onDismiss = { showEditDialog = false },
+            onSave = { gender, age, weight, heightMeters, actLvl, goal, steps, waterMl ->
+                onUpdateHealthProfile(gender, age, weight, heightMeters, actLvl, goal, steps, waterMl)
+                showEditDialog = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EditAnthropometricsDialog(
+    current: HealthProfileResponse,
+    onDismiss: () -> Unit,
+    onSave: (
+        gender: String,
+        age: Int,
+        weight: Float,
+        heightMeters: Float,
+        activityLevel: Int,
+        targetGoal: Int,
+        targetSteps: Int,
+        targetWaterMl: Int
+    ) -> Unit
+) {
+    var gender by remember { mutableStateOf(current.gender) }
+    var ageText by remember { mutableStateOf(current.age.toString()) }
+    var weightText by remember { mutableStateOf(current.weight.toString()) }
+    var heightCmText by remember { mutableStateOf((current.height * 100).toInt().toString()) }
+    var activityLevel by remember { mutableIntStateOf(current.activityLevel) }
+    var targetGoal by remember { mutableIntStateOf(current.targetGoal) }
+    var stepsText by remember { mutableStateOf(current.targetSteps.toString()) }
+    var waterMlText by remember { mutableStateOf((current.targetWater * 1000).toInt().toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        title = {
+            Text(
+                text = "Параметры и цели",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "Пол",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = gender == "m",
+                        onClick = { gender = "m" },
+                        label = { Text("Мужской") },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = PrimaryGreen
+                        )
+                    )
+                    FilterChip(
+                        selected = gender == "f",
+                        onClick = { gender = "f" },
+                        label = { Text("Женский") },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = PrimaryGreen
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Weight and Height
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { weightText = it },
+                        label = { Text("Вес (кг)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = heightCmText,
+                        onValueChange = { heightCmText = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Рост (см)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Age
+                OutlinedTextField(
+                    value = ageText,
+                    onValueChange = { ageText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Возраст (полных лет)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Activity level (1..5)
+                Text(
+                    text = "Уровень активности",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val activities = listOf(
+                    1 to "1: Сидячий образ",
+                    2 to "2: Лёгкая (1-3 трен.)",
+                    3 to "3: Умеренная (3-5 трен.)",
+                    4 to "4: Высокая (6-7 трен.)",
+                    5 to "5: Экстремальная"
+                )
+                activities.forEach { (lvl, title) ->
+                    Surface(
+                        onClick = { activityLevel = lvl },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (activityLevel == lvl) PrimaryGreen.copy(alpha = 0.15f) else Color.Transparent,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = if (activityLevel == lvl) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (activityLevel == lvl) PrimaryGreen else MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Target Goal (1..4)
+                Text(
+                    text = "Цель",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val goals = listOf(
+                    1 to "1: Похудение (дефицит)",
+                    2 to "2: Набор массы (профицит)",
+                    3 to "3: Рекомпозиция",
+                    4 to "4: Удержание веса"
+                )
+                goals.forEach { (g, title) ->
+                    Surface(
+                        onClick = { targetGoal = g },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (targetGoal == g) PrimaryGreen.copy(alpha = 0.15f) else Color.Transparent,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = if (targetGoal == g) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (targetGoal == g) PrimaryGreen else MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Steps & Water Goals
+                Text(
+                    text = "Цели по шагам и воде",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                OutlinedTextField(
+                    value = stepsText,
+                    onValueChange = { stepsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Цель шагов в день (0 — авто)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = waterMlText,
+                    onValueChange = { waterMlText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Цель по воде (мл)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val age = ageText.toIntOrNull()?.coerceIn(12, 125) ?: 25
+                    val weight = weightText.replace(",", ".").toFloatOrNull()?.coerceIn(20f, 350f) ?: 75f
+                    val heightCm = heightCmText.toIntOrNull()?.coerceIn(100, 250) ?: 175
+                    val heightM = heightCm / 100f
+                    val steps = stepsText.toIntOrNull()?.coerceAtLeast(0) ?: 0
+                    val waterMl = waterMlText.toIntOrNull()?.coerceAtLeast(500) ?: 2000
+
+                    onSave(
+                        gender,
+                        age,
+                        weight,
+                        heightM,
+                        activityLevel,
+                        targetGoal,
+                        steps,
+                        waterMl
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Сохранить", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ParamChip(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun MacroCard(
+    title: String,
+    grams: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.1f),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "$grams г",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = color
+            )
+        }
+    }
+}
+
+private fun getActivityLevelName(lvl: Int): String {
+    return when (lvl) {
+        1 -> "Сидячий (1)"
+        2 -> "Лёгкая (2)"
+        3 -> "Умеренная (3)"
+        4 -> "Высокая (4)"
+        5 -> "Экстремальная (5)"
+        else -> "Лёгкая (2)"
+    }
+}
+
+private fun getGoalName(goal: Int): String {
+    return when (goal) {
+        1 -> "Похудение (1)"
+        2 -> "Набор массы (2)"
+        3 -> "Рекомпозиция (3)"
+        4 -> "Удержание (4)"
+        else -> "Удержание (4)"
+    }
+}
+
+@Composable
+private fun CloudSyncCard(
+    account: UserAccount,
+    onSyncNow: () -> Unit,
+    onToggleAutoSync: (Boolean) -> Unit
+) {
+    val lastSyncFormatted = remember(account.lastSyncTimestamp) {
+        if (account.lastSyncTimestamp <= 0L) {
+            "Никогда"
+        } else {
+            val df = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+            df.format(Date(account.lastSyncTimestamp))
+        }
+    }
+
+    val isSyncing = account.syncStatus == SyncStatus.SYNCING
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Sync,
+                    contentDescription = null,
+                    tint = PrimaryGreen,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Синхронизация",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Sync Status
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
+                val rotation by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1200, easing = LinearEasing)
+                    ),
+                    label = "sync_rotation_anim"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(
+                            color = when (account.syncStatus) {
+                                SyncStatus.SYNCED -> PrimaryGreen.copy(alpha = 0.12f)
+                                SyncStatus.SYNCING -> PrimaryGreen.copy(alpha = 0.12f)
+                                SyncStatus.OFFLINE -> MaterialTheme.colorScheme.surfaceVariant
+                                else -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                            },
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when (account.syncStatus) {
+                            SyncStatus.SYNCED -> Icons.Default.Sync
+                            SyncStatus.SYNCING -> Icons.Default.Sync
+                            SyncStatus.OFFLINE -> Icons.Default.Sync
+                            else -> Icons.Default.Sync
+                        },
+                        contentDescription = null,
+                        tint = when (account.syncStatus) {
+                            SyncStatus.SYNCED -> PrimaryGreen
+                            SyncStatus.SYNCING -> PrimaryGreen
+                            SyncStatus.OFFLINE -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier
+                            .size(24.dp)
+                            .then(if (isSyncing) Modifier.rotate(rotation) else Modifier)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column {
+                    Text(
+                        text = when (account.syncStatus) {
+                            SyncStatus.SYNCED -> "Синхронизировано"
+                            SyncStatus.SYNCING -> "Идёт синхронизация..."
+                            SyncStatus.OFFLINE -> "Автономный режим"
+                            else -> "Требуется синхронизация"
+                        },
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Последняя синхронизация: $lastSyncFormatted",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -476,7 +1117,7 @@ private fun CloudSyncCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Auto-sync switch
+            // Auto-sync switch (without subtitle as requested by user)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -484,18 +1125,11 @@ private fun CloudSyncCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Автосинхронизация",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Автоматически отправлять изменения в аккаунт",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = "Автосинхронизация",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Switch(
                     checked = account.autoSyncEnabled,
                     onCheckedChange = onToggleAutoSync,
@@ -504,85 +1138,6 @@ private fun CloudSyncCard(
                         checkedTrackColor = PrimaryGreen
                     )
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CloudBackupCard(
-    backupInfo: CloudBackupInfo,
-    onSyncNow: () -> Unit,
-    onRestoreBackup: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Backup,
-                    contentDescription = null,
-                    tint = PrimaryGreen,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "Резервная копия дневника",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Все добавленные продукты, калории по дням и история приемов пищи надежно зашифрованы и привязаны к аккаунту.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onSyncNow,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudUpload,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = PrimaryGreen
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Создать копию", color = PrimaryGreen, style = MaterialTheme.typography.labelMedium)
-                }
-
-                OutlinedButton(
-                    onClick = onRestoreBackup,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudDownload,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Восстановить", style = MaterialTheme.typography.labelMedium)
-                }
             }
         }
     }
@@ -656,11 +1211,15 @@ private fun AuthCard(
             Spacer(modifier = Modifier.height(20.dp))
 
             if (selectedTab == 1) {
-                // Registration Name field
+                // Registration Login field
                 OutlinedTextField(
                     value = displayName,
-                    onValueChange = { displayName = it },
-                    label = { Text("Ваше имя") },
+                    onValueChange = {
+                        displayName = it
+                        localError = null
+                    },
+                    label = { Text("Логин (от 3 букв) *") },
+                    placeholder = { Text("Например: ivan") },
                     leadingIcon = {
                         Icon(Icons.Default.Person, contentDescription = null, tint = PrimaryGreen)
                     },
@@ -674,18 +1233,23 @@ private fun AuthCard(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Email Field
+            // Login or Email Field
             OutlinedTextField(
                 value = email,
                 onValueChange = {
                     email = it
                     localError = null
                 },
-                label = { Text("Электронная почта") },
+                label = { Text(if (selectedTab == 0) "Логин или эл. почта *" else "Электронная почта *") },
+                placeholder = { Text(if (selectedTab == 0) "Например: tester" else "user@example.com") },
                 leadingIcon = {
-                    Icon(Icons.Default.Email, contentDescription = null, tint = PrimaryGreen)
+                    Icon(
+                        imageVector = if (selectedTab == 0) Icons.Default.Person else Icons.Default.Email,
+                        contentDescription = null,
+                        tint = PrimaryGreen
+                    )
                 },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                keyboardOptions = KeyboardOptions(keyboardType = if (selectedTab == 0) KeyboardType.Text else KeyboardType.Email),
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen),
@@ -703,7 +1267,8 @@ private fun AuthCard(
                     password = it
                     localError = null
                 },
-                label = { Text("Пароль") },
+                label = { Text("Пароль *") },
+                placeholder = { Text(if (selectedTab == 1) "Минимум 6 симв., заглавная и цифра" else "Ваш пароль") },
                 leadingIcon = {
                     Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryGreen)
                 },
@@ -742,15 +1307,15 @@ private fun AuthCard(
                 onClick = {
                     if (selectedTab == 0) {
                         if (email.isBlank() || password.isBlank()) {
-                            localError = "Заполните email и пароль"
+                            localError = "Заполните логин и пароль"
                         } else {
-                            onLogin(email, password)
+                            onLogin(email.trim(), password)
                         }
                     } else {
                         if (email.isBlank() || password.isBlank() || displayName.isBlank()) {
                             localError = "Заполните все поля"
                         } else {
-                            onRegister(email, password, displayName)
+                            onRegister(displayName.trim(), password, email.trim())
                         }
                     }
                 },
@@ -767,117 +1332,6 @@ private fun AuthCard(
                 Text(
                     text = if (selectedTab == 0) "Войти в аккаунт" else "Зарегистрироваться",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HealthConnectCard(
-    isConnected: Boolean,
-    isAvailable: Boolean,
-    onToggle: (Boolean) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(Color(0xFF00B0FF).copy(alpha = 0.15f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.HealthAndSafety,
-                            contentDescription = null,
-                            tint = Color(0xFF0091EA),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Health Connect",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isConnected) PrimaryGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Text(
-                                    text = if (isConnected) "Подключено" else "Отключено",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isConnected) PrimaryGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        Text(
-                            text = if (isConnected) "Шагомер активен" else "Шагомер заблокирован",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isConnected) PrimaryGreen else MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-
-                Switch(
-                    checked = isConnected,
-                    onCheckedChange = onToggle,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF0091EA)
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "Служба Health Connect от Google синхронизирует шаги, дистанцию и показатели активности. Если служба отключена, шагомер в приложении блокируется.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            OutlinedButton(
-                onClick = { onToggle(!isConnected) },
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = if (isConnected) Icons.Default.DirectionsWalk else Icons.Default.HealthAndSafety,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = if (isConnected) PrimaryGreen else Color(0xFF0091EA)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (isConnected) "Отключить Health Connect" else "Подключить Health Connect",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = if (isConnected) MaterialTheme.colorScheme.onSurface else Color(0xFF0091EA)
                 )
             }
         }

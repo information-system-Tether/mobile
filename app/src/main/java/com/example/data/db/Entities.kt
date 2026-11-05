@@ -3,9 +3,12 @@ package com.example.data.db
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.example.data.model.DailyGoals
+import com.example.data.model.Equipment
+import com.example.data.model.Exercise
 import com.example.data.model.FoodProduct
 import com.example.data.model.LoggedFood
 import com.example.data.model.MealType
+import com.example.data.model.MuscleGroup
 
 @Entity(tableName = "logged_foods")
 data class LoggedFoodEntity(
@@ -128,7 +131,8 @@ data class DailyGoalsEntity(
     val fatGoalGrams: Float = 65f,
     val carbsGoalGrams: Float = 230f,
     val fiberGoalGrams: Float = 30f,
-    val waterGoalMl: Int = 2000
+    val waterGoalMl: Int = 2000,
+    val stepGoal: Int = 10000
 ) {
     fun toDomain() = DailyGoals(
         caloriesGoal = caloriesGoal,
@@ -136,7 +140,8 @@ data class DailyGoalsEntity(
         fatGoalGrams = fatGoalGrams,
         carbsGoalGrams = carbsGoalGrams,
         fiberGoalGrams = fiberGoalGrams,
-        waterGoalMl = waterGoalMl
+        waterGoalMl = waterGoalMl,
+        stepGoal = stepGoal
     )
 
     companion object {
@@ -147,7 +152,8 @@ data class DailyGoalsEntity(
             fatGoalGrams = domain.fatGoalGrams,
             carbsGoalGrams = domain.carbsGoalGrams,
             fiberGoalGrams = domain.fiberGoalGrams,
-            waterGoalMl = domain.waterGoalMl
+            waterGoalMl = domain.waterGoalMl,
+            stepGoal = domain.stepGoal
         )
     }
 }
@@ -222,3 +228,73 @@ data class DailyStepEntity(
     val isFromHealthConnect: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "workout_sessions")
+data class WorkoutSessionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val date: String,
+    val title: String,
+    val routineId: String? = null,
+    val durationSeconds: Int,
+    val caloriesBurned: Float,
+    val volumeKg: Float,
+    val notes: String = "",
+    val exercisesJson: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "custom_routines")
+data class CustomRoutineEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val targetMuscles: String,
+    val defaultRestSeconds: Int = 90,
+    val exerciseIdsJson: String = ""
+)
+
+@Entity(tableName = "custom_exercises")
+data class CustomExerciseEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val primaryMuscle: String,
+    val equipment: String = "OTHER",
+    val difficulty: String = "Средний",
+    val description: String = ""
+) {
+    fun toDomain(): Exercise {
+        val muscle = try {
+            MuscleGroup.valueOf(primaryMuscle)
+        } catch (e: Exception) {
+            MuscleGroup.CHEST
+        }
+        val eq = try {
+            Equipment.valueOf(equipment)
+        } catch (e: Exception) {
+            Equipment.OTHER
+        }
+        return Exercise(
+            id = id,
+            name = name,
+            primaryMuscle = muscle,
+            secondaryMuscles = emptyList(),
+            equipment = eq,
+            difficulty = difficulty,
+            description = description
+        )
+    }
+
+    companion object {
+        fun fromDomain(exercise: Exercise): CustomExerciseEntity {
+            return CustomExerciseEntity(
+                id = exercise.id,
+                name = exercise.name,
+                primaryMuscle = exercise.primaryMuscle.name,
+                equipment = exercise.equipment.name,
+                difficulty = exercise.difficulty,
+                description = exercise.description
+            )
+        }
+    }
+}
+
+

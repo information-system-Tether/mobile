@@ -21,7 +21,7 @@ enum class DarkThemeMode(val displayNameRu: String) {
 }
 
 data class AppThemeConfig(
-    val useMonet: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+    val useMonet: Boolean = false,
     val palette: AppThemePalette = AppThemePalette.EMERALD,
     val darkThemeMode: DarkThemeMode = DarkThemeMode.SYSTEM
 )
@@ -33,8 +33,7 @@ class ThemeRepository(context: Context) {
     val themeConfig: StateFlow<AppThemeConfig> = _themeConfig.asStateFlow()
 
     private fun loadConfig(): AppThemeConfig {
-        val useMonetDefault = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-        val useMonet = prefs.getBoolean(KEY_USE_MONET, useMonetDefault)
+        val useMonet = prefs.getBoolean(KEY_USE_MONET, false)
         val paletteName = prefs.getString(KEY_PALETTE, AppThemePalette.EMERALD.name) ?: AppThemePalette.EMERALD.name
         val modeName = prefs.getString(KEY_DARK_MODE, DarkThemeMode.SYSTEM.name) ?: DarkThemeMode.SYSTEM.name
 

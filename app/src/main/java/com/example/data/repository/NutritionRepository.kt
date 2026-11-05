@@ -15,9 +15,16 @@ import com.example.data.model.LoggedFood
 import com.example.data.model.MealType
 import com.example.data.model.StepActivityStats
 import com.example.data.model.Workout
+import com.example.data.model.DayStatsSummary
+import com.example.data.model.WeeklyAnalytics
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 
 class NutritionRepository(private val database: AppDatabase) {
@@ -80,10 +87,95 @@ class NutritionRepository(private val database: AppDatabase) {
                 totalSodium = totalSodium,
                 waterConsumedMl = waterMl,
                 mealBreakdown = mealMap,
+                allLoggedFoods = domainFoods,
                 totalBurnedCalories = totalBurned,
                 stepsCount = stepsCount,
                 stepsBurnedCalories = stepsKcal,
                 workoutCount = workoutEntities.size
+            )
+        }
+    }
+
+    fun getWeeklyAnalytics(endDateStr: String): Flow<WeeklyAnalytics> {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dayNameFormat = SimpleDateFormat("EE", Locale("ru"))
+        val cal = Calendar.getInstance()
+        val parsedDate = try { sdf.parse(endDateStr) ?: Date() } catch (e: Exception) { Date() }
+        cal.time = parsedDate
+
+        val dateList = mutableListOf<String>()
+        val dayNames = mutableListOf<String>()
+        val tempCal = Calendar.getInstance()
+        tempCal.time = parsedDate
+        tempCal.add(Calendar.DAY_OF_YEAR, -6)
+        for (i in 0 until 7) {
+            dateList.add(sdf.format(tempCal.time))
+            dayNames.add(dayNameFormat.format(tempCal.time).replace(".", "").replaceFirstChar { it.uppercase() })
+            tempCal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        val startDateStr = dateList.first()
+
+        return combine(
+            dao.getLoggedFoodsBetweenDates(startDateStr, endDateStr),
+            dao.getDailyGoals(),
+            dao.getWaterLogsBetweenDates(startDateStr, endDateStr),
+            dao.getDailyStepsBetweenDates(startDateStr, endDateStr)
+        ) { foodsList, goalsEntity, waterList, stepsList ->
+            val goals = goalsEntity?.toDomain() ?: DailyGoals()
+            val foodsByDate = foodsList.groupBy { it.date }
+            val waterByDate = waterList.associateBy { it.date }
+            val stepsByDate = stepsList.associateBy { it.date }
+
+            val daysSummary = dateList.mapIndexed { idx, date ->
+                val dayFoods = foodsByDate[date] ?: emptyList()
+                val cals = dayFoods.sumOf { it.calories.toDouble() }.toFloat()
+                val prot = dayFoods.sumOf { it.protein.toDouble() }.toFloat()
+                val fat = dayFoods.sumOf { it.fat.toDouble() }.toFloat()
+                val carbs = dayFoods.sumOf { it.carbs.toDouble() }.toFloat()
+                val waterMl = waterByDate[date]?.amountMl ?: 0
+                val stepObj = stepsByDate[date]
+                val steps = stepObj?.steps ?: 0
+                val burned = stepObj?.caloriesBurned ?: StepActivityStats.calculateCaloriesFromSteps(steps)
+
+                DayStatsSummary(
+                    date = date,
+                    dayOfWeek = dayNames[idx],
+                    calories = cals,
+                    targetCalories = goals.caloriesGoal,
+                    protein = prot,
+                    targetProtein = goals.proteinGoalGrams,
+                    fat = fat,
+                    targetFat = goals.fatGoalGrams,
+                    carbs = carbs,
+                    targetCarbs = goals.carbsGoalGrams,
+                    waterMl = waterMl,
+                    targetWaterMl = goals.waterGoalMl,
+                    steps = steps,
+                    targetSteps = goals.stepGoal,
+                    burnedCalories = burned
+                )
+            }
+
+            val avgCals = if (daysSummary.isNotEmpty()) daysSummary.map { it.calories }.average().toFloat() else 0f
+            val avgProt = if (daysSummary.isNotEmpty()) daysSummary.map { it.protein }.average().toFloat() else 0f
+            val avgFat = if (daysSummary.isNotEmpty()) daysSummary.map { it.fat }.average().toFloat() else 0f
+            val avgCarbs = if (daysSummary.isNotEmpty()) daysSummary.map { it.carbs }.average().toFloat() else 0f
+            val avgWater = if (daysSummary.isNotEmpty()) daysSummary.map { it.waterMl }.average().toInt() else 0
+            val avgSteps = if (daysSummary.isNotEmpty()) daysSummary.map { it.steps }.average().toInt() else 0
+            val totalBurn = daysSummary.sumOf { it.burnedCalories.toDouble() }.toFloat()
+
+            WeeklyAnalytics(
+                days = daysSummary,
+                averageCalories = avgCals,
+                averageProtein = avgProt,
+                averageFat = avgFat,
+                averageCarbs = avgCarbs,
+                averageWaterMl = avgWater,
+                averageSteps = avgSteps,
+                totalBurnedCalories = totalBurn,
+                targetCalories = goals.caloriesGoal,
+                targetWaterMl = goals.waterGoalMl,
+                targetSteps = goals.stepGoal
             )
         }
     }
@@ -102,6 +194,11 @@ class NutritionRepository(private val database: AppDatabase) {
 
     suspend fun updateGoals(goals: DailyGoals) = withContext(Dispatchers.IO) {
         dao.setDailyGoals(DailyGoalsEntity.fromDomain(goals))
+    }
+
+    suspend fun updateStepGoal(newGoal: Int) = withContext(Dispatchers.IO) {
+        val current = dao.getDailyGoals().firstOrNull()?.toDomain() ?: DailyGoals()
+        dao.setDailyGoals(DailyGoalsEntity.fromDomain(current.copy(stepGoal = newGoal)))
     }
 
     suspend fun searchProducts(query: String, favoriteIds: Set<String> = emptySet()): List<FoodProduct> = withContext(Dispatchers.IO) {

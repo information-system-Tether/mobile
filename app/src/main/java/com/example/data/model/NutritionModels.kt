@@ -63,7 +63,8 @@ data class DailyGoals(
     val fatGoalGrams: Float = 65f,
     val carbsGoalGrams: Float = 230f,
     val fiberGoalGrams: Float = 30f,
-    val waterGoalMl: Int = 2000
+    val waterGoalMl: Int = 2000,
+    val stepGoal: Int = 10000
 )
 
 data class DailyNutrientStats(
@@ -78,6 +79,7 @@ data class DailyNutrientStats(
     val totalSodium: Float = 0f,
     val waterConsumedMl: Int = 0,
     val mealBreakdown: Map<MealType, List<LoggedFood>> = emptyMap(),
+    val allLoggedFoods: List<LoggedFood> = emptyList(),
     val totalBurnedCalories: Float = 0f,
     val stepsCount: Int = 0,
     val stepsBurnedCalories: Float = 0f,

@@ -123,18 +123,17 @@ fun CreateProductDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                OutlinedTextField(
-                    value = kcal,
-                    onValueChange = { kcal = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Калорийность (ккал) *") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
-                )
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = kcal,
+                        onValueChange = { kcal = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("Калории (ккал) *") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
+                    )
                     OutlinedTextField(
                         value = protein,
                         onValueChange = { protein = it.filter { c -> c.isDigit() || c == '.' } },
@@ -145,6 +144,9 @@ fun CreateProductDialog(
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
                     )
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = fat,
                         onValueChange = { fat = it.filter { c -> c.isDigit() || c == '.' } },
@@ -167,7 +169,7 @@ fun CreateProductDialog(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = fiber,
                         onValueChange = { fiber = it.filter { c -> c.isDigit() || c == '.' } },

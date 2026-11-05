@@ -29,6 +29,15 @@ interface FoodDao {
     @Query("SELECT DISTINCT date FROM logged_foods ORDER BY date DESC")
     fun getAllLoggedDates(): Flow<List<String>>
 
+    @Query("SELECT * FROM logged_foods WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC, timestamp ASC")
+    fun getLoggedFoodsBetweenDates(startDate: String, endDate: String): Flow<List<LoggedFoodEntity>>
+
+    @Query("SELECT * FROM water_logs WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    fun getWaterLogsBetweenDates(startDate: String, endDate: String): Flow<List<WaterLogEntity>>
+
+    @Query("SELECT * FROM daily_steps WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    fun getDailyStepsBetweenDates(startDate: String, endDate: String): Flow<List<DailyStepEntity>>
+
     // Custom Products
     @Query("SELECT * FROM custom_products ORDER BY id DESC")
     fun getAllCustomProducts(): Flow<List<CustomProductEntity>>
@@ -54,6 +63,12 @@ interface FoodDao {
     suspend fun setWaterLog(waterLog: WaterLogEntity)
 
     // Stats and Counts for Cloud Sync
+    @Query("SELECT * FROM logged_foods")
+    suspend fun getAllLoggedFoodsList(): List<LoggedFoodEntity>
+
+    @Query("SELECT * FROM water_logs")
+    suspend fun getAllWaterLogsList(): List<WaterLogEntity>
+
     @Query("SELECT COUNT(*) FROM logged_foods")
     suspend fun getTotalLoggedFoodsCount(): Int
 
@@ -95,4 +110,36 @@ interface FoodDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setDailySteps(steps: DailyStepEntity)
+
+    // Advanced Workout Sessions
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWorkoutSession(session: WorkoutSessionEntity): Long
+
+    @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC")
+    fun getAllWorkoutSessions(): Flow<List<WorkoutSessionEntity>>
+
+    @Query("SELECT * FROM workout_sessions WHERE date = :date ORDER BY timestamp DESC")
+    fun getWorkoutSessionsForDate(date: String): Flow<List<WorkoutSessionEntity>>
+
+    @Query("DELETE FROM workout_sessions WHERE id = :id")
+    suspend fun deleteWorkoutSession(id: Long)
+
+    @Query("SELECT * FROM custom_routines")
+    fun getAllCustomRoutines(): Flow<List<CustomRoutineEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCustomRoutine(routine: CustomRoutineEntity)
+
+    @Query("DELETE FROM custom_routines WHERE id = :id")
+    suspend fun deleteCustomRoutine(id: String)
+
+    // Custom Exercises
+    @Query("SELECT * FROM custom_exercises ORDER BY name ASC")
+    fun getAllCustomExercises(): Flow<List<CustomExerciseEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCustomExercise(exercise: CustomExerciseEntity)
+
+    @Query("DELETE FROM custom_exercises WHERE id = :id")
+    suspend fun deleteCustomExercise(id: String)
 }
